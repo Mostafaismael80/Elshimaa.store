@@ -1,5 +1,11 @@
 import { apiClient } from "./client";
-import type { ApiResponse, CouponResponse, CreateCouponRequest } from "../types";
+import type {
+  ApiResponse,
+  CouponResponse,
+  CreateCouponRequest,
+  ValidateCouponRequest,
+  ValidateCouponResponse,
+} from "../types";
 
 export const couponsApi = {
   getAll: async (includeInactive = false): Promise<ApiResponse<CouponResponse[]>> => {
@@ -26,6 +32,11 @@ export const couponsApi = {
 
   delete: async (id: string): Promise<ApiResponse<null>> => {
     const res = await apiClient.delete<ApiResponse<null>>(`/coupons/${id}`);
+    return res.data;
+  },
+
+  validate: async (data: ValidateCouponRequest): Promise<ApiResponse<ValidateCouponResponse>> => {
+    const res = await apiClient.post<ApiResponse<ValidateCouponResponse>>("/coupons/validate", data);
     return res.data;
   },
 };

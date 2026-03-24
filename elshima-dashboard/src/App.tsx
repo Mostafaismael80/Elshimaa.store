@@ -6,8 +6,9 @@ import Products from "./pages/Products";
 import Categories from "./pages/Categories";
 import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
-import Discounts from "./pages/Discounts";
 import Coupons from "./pages/Coupons";
+import Governorates from "./pages/Governorates";
+import Promotions from "./pages/Promotions";
 import { useAuth } from "./context/AuthContext";
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -27,8 +28,9 @@ function App() {
           <Route path="/categories" element={<Categories />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/customers" element={<Customers />} />
-          <Route path="/discounts" element={<Discounts />} />
+          <Route path="/promotions" element={<Promotions />} />
           <Route path="/coupons" element={<Coupons />} />
+          <Route path="/governorates" element={<Governorates />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

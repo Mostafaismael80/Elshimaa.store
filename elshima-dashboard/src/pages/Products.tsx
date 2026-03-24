@@ -3,9 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Search, Image, Star, Eye, Package, X } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Search, Image, Star, Eye, Package, X, Upload,
+  ChevronLeft, ChevronRight, Tag, Filter,
+} from "lucide-react";
 import { productsApi } from "../api/products";
 import { categoriesApi } from "../api/categories";
+import { imagesApi } from "../api/images";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -24,81 +28,138 @@ import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
 import { formatCurrency } from "../lib/utils";
-import type { ProductResponse, AddProductBatchRequest, AddProductItem } from "../types";
+import type { ProductResponse, CreateProductRequest, UpdateProductRequest, CreateColorDto } from "../types";
 
-const BASE_URL = "http://localhost:5070";
-
-const productSchema = z.object({
-  nameAr: z.string().min(1, "الاسم مطلوب"),
-  slug: z.string().optional(),
-  descriptionAr: z.string().optional(),
-  basePrice: z.coerce.number().min(0, "السعر يجب أن يكون >= 0"),
-  percentageDiscount: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
-    z.number().min(0, "النسبة لا تقل عن 0").max(100, "النسبة لا تزيد عن 100").nullable()
-  ),
-  fixedAmountDiscount: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
-    z.number().min(0, "القيمة لا تقل عن 0").nullable()
-  ),
-  categoryId: z.string().optional(),
-  categorySlug: z.string().optional(),
-  sizeType: z.string().default(""),
-  isActive: z.boolean(),
-  isFeatured: z.boolean(),
-});
-
-type ProductForm = z.infer<typeof productSchema>;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ColorImage {
-  imageUrl: string;
+  imageUrl: string;      // relative path from upload API
   file: File | null;
-  previewUrl: string;
+  previewUrl: string;    // local objectURL or full server URL for display
   displayOrder: number;
   isMain: boolean;
   altText: string;
 }
 
 interface ColorSize {
+  sizeId: string;
   sizeName: string;
   availableQuantity: number;
   priceOverride: number | null;
 }
 
 interface ColorEntry {
-  colorName: string;
+  colorId: string;
+  colorName: string; // for display only
   isDefault: boolean;
   images: ColorImage[];
   sizes: ColorSize[];
 }
 
+/** Display images for product card (exactly 2: SortOrder 0 = main, 1 = hover) */
+interface DisplayImageEntry {
+  imageUrl: string;
+  file: File | null;
+  previewUrl: string;
+  sortOrder: number;
+  altText: string;
+}
+
 const defaultColorEntry = (): ColorEntry => ({
+  colorId: "",
   colorName: "",
   isDefault: false,
   images: [{ imageUrl: "", file: null, previewUrl: "", displayOrder: 1, isMain: true, altText: "" }],
-  sizes: [{ sizeName: "", availableQuantity: 0, priceOverride: null }],
+  sizes: [{ sizeId: "", sizeName: "", availableQuantity: 0, priceOverride: null }],
 });
+
+const defaultDisplayImages = (): DisplayImageEntry[] => [
+  { imageUrl: "", file: null, previewUrl: "", sortOrder: 0, altText: "الصورة الرئيسية" },
+  { imageUrl: "", file: null, previewUrl: "", sortOrder: 1, altText: "صورة التمرير" },
+];
+
+// ─── Form Schema ──────────────────────────────────────────────────────────────
+
+const productSchema = z.object({
+  nameAr: z.string().min(2, "الاسم مطلوب (2 أحرف على الأقل)"),
+  descriptionAr: z.string().optional(),
+  basePrice: z.coerce.number().min(0.01, "السعر يجب أن يكون أكبر من 0"),
+  categoryId: z.string().min(1, "الفئة مطلوبة"),
+  sizeTypeId: z.string().default(""),
+  isActive: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
+  isDiscountActive: z.boolean().default(false),
+  discountType: z.coerce.number().optional(),
+  discountValue: z.coerce.number().optional(),
+  discountStartDate: z.string().optional(),
+  discountEndDate: z.string().optional(),
+});
+
+type ProductForm = z.infer<typeof productSchema>;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Upload pending files, return relative paths */
+async function resolveImageUrl(img: { file: File | null; imageUrl: string }): Promise<string> {
+  if (img.file) return imagesApi.uploadImage(img.file);
+  return img.imageUrl;
+}
+
+function ProductImage({ src, alt }: { src: string | null | undefined; alt: string }) {
+  if (!src) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-gray-100">
+        <Image className="h-10 w-10 text-gray-300" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover aspect-square"
+      onError={(e) => {
+        const img = e.currentTarget;
+        img.onerror = null;
+        img.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+      }}
+    />
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Products() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // List state
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [filterActive, setFilterActive] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+
+  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductResponse | null>(null);
+
+  // Dynamic form state
   const [colors, setColors] = useState<ColorEntry[]>([defaultColorEntry()]);
+  const [displayImages, setDisplayImages] = useState<DisplayImageEntry[]>(defaultDisplayImages());
+  const [useDisplayImages, setUseDisplayImages] = useState(false);
+
+  // ─── Queries ─────────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
-    queryKey: ["products", page, search, filterActive],
+    queryKey: ["products", page, search, filterActive, filterCategory],
     queryFn: () =>
       productsApi.getAll({
         pageNumber: page,
         pageSize: 12,
         search: search || undefined,
-        isActive:
-          filterActive === "active" ? true : filterActive === "inactive" ? false : undefined,
+        isActive: filterActive === "active" ? true : filterActive === "inactive" ? false : undefined,
+        categoryId: filterCategory !== "all" ? filterCategory : undefined,
       }),
   });
 
@@ -109,24 +170,24 @@ export default function Products() {
 
   const categories = categoriesData?.data ?? [];
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<ProductForm>({
+  // ─── Form ─────────────────────────────────────────────────────────────────────
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<ProductForm>({
     resolver: zodResolver(productSchema) as any,
-    defaultValues: {
-      nameAr: "",
-      slug: "",
-      descriptionAr: "",
-      basePrice: 0,
-      percentageDiscount: null,
-      fixedAmountDiscount: null,
-      categorySlug: "",
-      sizeType: "",
-      isActive: true,
-      isFeatured: false,
-    },
+    defaultValues: { nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: 0 },
   });
 
+  // ─── Mutations ────────────────────────────────────────────────────────────────
+
   const createMutation = useMutation({
-    mutationFn: (data: AddProductBatchRequest) => productsApi.createBatch(data),
+    mutationFn: (data: CreateProductRequest) => productsApi.create(data),
     onSuccess: () => {
       toast("تم إنشاء المنتج بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -136,7 +197,7 @@ export default function Products() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => productsApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateProductRequest }) => productsApi.update(id, data),
     onSuccess: () => {
       toast("تم تحديث المنتج بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -155,13 +216,13 @@ export default function Products() {
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الحذف", "error"),
   });
 
-  // Color management helpers
-  const addColor = () =>
-    setColors((prev) => [...prev, { ...defaultColorEntry(), isDefault: prev.length === 0 }]);
-  const removeColor = (ci: number) =>
-    setColors((prev) => prev.filter((_, i) => i !== ci));
+  // ─── Color helpers ────────────────────────────────────────────────────────────
+
+  const addColor = () => setColors((prev) => [...prev, { ...defaultColorEntry(), isDefault: prev.length === 0 }]);
+  const removeColor = (ci: number) => setColors((prev) => prev.filter((_, i) => i !== ci));
   const updateColor = (ci: number, field: keyof ColorEntry, value: any) =>
     setColors((prev) => prev.map((c, i) => (i === ci ? { ...c, [field]: value } : c)));
+
   const addImage = (ci: number) =>
     setColors((prev) =>
       prev.map((c, i) =>
@@ -170,114 +231,127 @@ export default function Products() {
           : c
       )
     );
+  const removeImage = (ci: number, ii: number) =>
+    setColors((prev) => prev.map((c, i) => (i === ci ? { ...c, images: c.images.filter((_, j) => j !== ii) } : c)));
   const setImageFile = (ci: number, ii: number, file: File) => {
     const previewUrl = URL.createObjectURL(file);
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci
-          ? { ...c, images: c.images.map((img, j) => j === ii ? { ...img, file, previewUrl, imageUrl: "" } : img) }
-          : c
+        i === ci ? { ...c, images: c.images.map((img, j) => (j === ii ? { ...img, file, previewUrl, imageUrl: "" } : img)) } : c
       )
     );
   };
   const clearImageFile = (ci: number, ii: number) =>
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci
-          ? { ...c, images: c.images.map((img, j) => j === ii ? { ...img, file: null, previewUrl: "", imageUrl: "" } : img) }
-          : c
+        i === ci ? { ...c, images: c.images.map((img, j) => (j === ii ? { ...img, file: null, previewUrl: "", imageUrl: "" } : img)) } : c
       )
-    );
-  const removeImage = (ci: number, ii: number) =>
-    setColors((prev) =>
-      prev.map((c, i) => (i === ci ? { ...c, images: c.images.filter((_, j) => j !== ii) } : c))
     );
   const updateImage = (ci: number, ii: number, field: keyof ColorImage, value: any) =>
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci
-          ? { ...c, images: c.images.map((img, j) => (j === ii ? { ...img, [field]: value } : img)) }
-          : c
+        i === ci ? { ...c, images: c.images.map((img, j) => (j === ii ? { ...img, [field]: value } : img)) } : c
       )
     );
+
   const addSize = (ci: number) =>
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci
-          ? { ...c, sizes: [...c.sizes, { sizeName: "", availableQuantity: 0, priceOverride: null }] }
-          : c
+        i === ci ? { ...c, sizes: [...c.sizes, { sizeId: "", sizeName: "", availableQuantity: 0, priceOverride: null }] } : c
       )
     );
   const removeSize = (ci: number, si: number) =>
-    setColors((prev) =>
-      prev.map((c, i) => (i === ci ? { ...c, sizes: c.sizes.filter((_, j) => j !== si) } : c))
-    );
+    setColors((prev) => prev.map((c, i) => (i === ci ? { ...c, sizes: c.sizes.filter((_, j) => j !== si) } : c)));
   const updateSize = (ci: number, si: number, field: keyof ColorSize, value: any) =>
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci
-          ? { ...c, sizes: c.sizes.map((s, j) => (j === si ? { ...s, [field]: value } : s)) }
-          : c
+        i === ci ? { ...c, sizes: c.sizes.map((s, j) => (j === si ? { ...s, [field]: value } : s)) } : c
       )
     );
 
+  // ─── Display image helpers ────────────────────────────────────────────────────
+
+  const setDisplayImageFile = (idx: number, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    setDisplayImages((prev) => prev.map((d, i) => (i === idx ? { ...d, file, previewUrl, imageUrl: "" } : d)));
+  };
+  const clearDisplayImageFile = (idx: number) =>
+    setDisplayImages((prev) => prev.map((d, i) => (i === idx ? { ...d, file: null, previewUrl: "", imageUrl: "" } : d)));
+
+  // ─── Dialog helpers ───────────────────────────────────────────────────────────
+
   const openCreate = () => {
     setSelectedProduct(null);
-    reset({
-      nameAr: "",
-      slug: "",
-      descriptionAr: "",
-      basePrice: 0,
-      percentageDiscount: null,
-      fixedAmountDiscount: null,
-      categoryId: "",
-      categorySlug: "",
-      sizeType: "",
-      isActive: true,
-      isFeatured: false,
-    });
+    reset({ nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: 0, discountStartDate: "", discountEndDate: "" });
     setColors([defaultColorEntry()]);
+    setDisplayImages(defaultDisplayImages());
+    setUseDisplayImages(false);
     setDialogOpen(true);
   };
 
-  const openEdit = (product: ProductResponse) => {
+  const openEdit = async (product: ProductResponse) => {
     setSelectedProduct(product);
-    const catSlug = categories.find((c) => c.id === product.categoryId)?.slug ?? "";
     reset({
       nameAr: product.nameAr,
-      slug: product.slug,
       descriptionAr: product.descriptionAr ?? "",
       basePrice: product.basePrice,
-      percentageDiscount: product.percentageDiscount ?? null,
-      fixedAmountDiscount: product.fixedAmountDiscount ?? null,
       categoryId: product.categoryId,
-      categorySlug: catSlug,
-      sizeType: "",
+      sizeTypeId: "",
       isActive: product.isActive,
       isFeatured: product.isFeatured,
+      isDiscountActive: false,
+      discountType: 0,
+      discountValue: 0,
+      discountStartDate: "",
+      discountEndDate: "",
     });
-    // Populate colors state from existing product colors
-    if (product.colors && product.colors.length > 0) {
-      setColors(product.colors.map((c) => ({
-        colorName: c.colorName,
-        isDefault: c.isDefault,
-        images: c.images.map((img) => ({
-          imageUrl: img.imageUrl,
-          file: null,
-          previewUrl: `${BASE_URL}${img.imageUrl}`,
-          displayOrder: img.displayOrder,
-          isMain: img.isMain,
-          altText: img.altText ?? "",
-        })),
-        sizes: c.variants.map((v) => ({
-          sizeName: v.sizeName,
-          availableQuantity: v.availableQuantity,
-          priceOverride: v.price !== product.basePrice ? v.price : null,
-        })),
-      })));
-    } else {
+
+    // Load full detail to get colors with images/variants
+    try {
+      const detail = await productsApi.getById(product.id);
+      const fullProduct = detail.data;
+      if (fullProduct.colors && fullProduct.colors.length > 0) {
+        setColors(
+          fullProduct.colors.map((c) => ({
+            colorId: c.colorId,
+            colorName: c.colorName,
+            isDefault: c.isDefault,
+            images: c.images.map((img) => ({
+              imageUrl: img.imageUrl,
+              file: null,
+              previewUrl: img.imageUrl, // already full URL from API
+              displayOrder: img.displayOrder,
+              isMain: img.isMain,
+              altText: img.altText ?? "",
+            })),
+            sizes: c.variants.map((v) => ({
+              sizeId: v.sizeId,
+              sizeName: v.sizeName,
+              availableQuantity: v.availableQuantity,
+              priceOverride: v.priceOverride,
+            })),
+          }))
+        );
+      } else {
+        setColors([defaultColorEntry()]);
+      }
+
+      if (fullProduct.displayImages && fullProduct.displayImages.length > 0) {
+        const sorted = [...fullProduct.displayImages].sort((a, b) => a.sortOrder - b.sortOrder);
+        setDisplayImages(
+          sorted.map((d) => ({ imageUrl: d.imageUrl, file: null, previewUrl: d.imageUrl, sortOrder: d.sortOrder, altText: d.altText ?? "" }))
+        );
+        setUseDisplayImages(true);
+      } else {
+        setDisplayImages(defaultDisplayImages());
+        setUseDisplayImages(false);
+      }
+    } catch {
       setColors([defaultColorEntry()]);
+      setDisplayImages(defaultDisplayImages());
+      setUseDisplayImages(false);
     }
+
     setDialogOpen(true);
   };
 
@@ -286,24 +360,27 @@ export default function Products() {
     setDeleteDialogOpen(true);
   };
 
-  // Shared helper: upload any pending files and return resolved colors payload
-  const resolveColorsForSubmit = async () => {
-    if (colors.length === 0 || colors.some((c) => !c.colorName.trim())) {
-      toast("يرجى إدخال اسم لكل لون", "error");
+  // ─── Submit ───────────────────────────────────────────────────────────────────
+
+  const resolveColorsForSubmit = async (): Promise<CreateColorDto[] | null> => {
+    if (colors.some((c) => !c.colorId.trim())) {
+      toast("يرجى إدخال معرّف لكل لون (colorId)", "error");
       return null;
     }
     return Promise.all(
       colors.map(async (c) => ({
-        colorName: c.colorName.trim(),
+        colorId: c.colorId.trim(),
         isDefault: c.isDefault,
         images: await Promise.all(
-          c.images.map(async (img) => {
-            const url = img.file ? await productsApi.uploadImage(img.file) : img.imageUrl.trim();
-            return { imageUrl: url, displayOrder: img.displayOrder, isMain: img.isMain, altText: img.altText };
-          })
+          c.images.map(async (img) => ({
+            imageUrl: await resolveImageUrl(img),
+            displayOrder: img.displayOrder,
+            isMain: img.isMain,
+            altText: img.altText || undefined,
+          }))
         ),
-        sizes: c.sizes.map((s) => ({
-          sizeName: s.sizeName.trim(),
+        variants: c.sizes.map((s) => ({
+          sizeId: s.sizeId.trim(),
           availableQuantity: Number(s.availableQuantity),
           priceOverride: s.priceOverride != null ? Number(s.priceOverride) : null,
         })),
@@ -312,74 +389,76 @@ export default function Products() {
   };
 
   const onSubmit = async (values: ProductForm) => {
+    const resolvedColors = await resolveColorsForSubmit();
+    if (!resolvedColors) return;
+
+    let resolvedDisplayImages = undefined;
+    if (useDisplayImages) {
+      const di = await Promise.all(
+        displayImages.map(async (d) => ({
+          imageUrl: await resolveImageUrl(d),
+          sortOrder: d.sortOrder,
+          altText: d.altText || undefined,
+        }))
+      );
+      resolvedDisplayImages = di;
+    }
+
     if (selectedProduct) {
-      const resolvedColors = await resolveColorsForSubmit();
-      if (!resolvedColors) return;
       await updateMutation.mutateAsync({
         id: selectedProduct.id,
         data: {
           nameAr: values.nameAr,
           descriptionAr: values.descriptionAr,
           basePrice: values.basePrice,
-          percentageDiscount: values.percentageDiscount ?? null,
-          fixedAmountDiscount: values.fixedAmountDiscount ?? null,
-          categoryId: values.categoryId ?? selectedProduct.categoryId,
+          categoryId: values.categoryId,
           isActive: values.isActive,
           isFeatured: values.isFeatured,
           colors: resolvedColors,
+          displayImages: useDisplayImages ? resolvedDisplayImages : null,
+          isDiscountActive: values.isDiscountActive,
+          discountType: values.isDiscountActive ? values.discountType : null,
+          discountValue: values.isDiscountActive ? values.discountValue : null,
+          discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
+          discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
         },
       });
     } else {
-      if (!values.categorySlug?.trim() || !values.sizeType?.trim()) {
-        toast("يرجى ملء حقلي الفئة ونوع المقاس", "error");
+      if (!values.sizeTypeId?.trim()) {
+        toast("يرجى إدخال معرّف نوع المقاس (sizeTypeId)", "error");
         return;
       }
-      const resolvedColors = await resolveColorsForSubmit();
-      if (!resolvedColors) return;
-      const productItem: AddProductItem = {
+      await createMutation.mutateAsync({
         nameAr: values.nameAr,
-        slug: values.slug?.trim() ?? "",
-        descriptionAr: values.descriptionAr ?? "",
-        basePrice: Number(values.basePrice),
-        percentageDiscount: values.percentageDiscount ?? null,
-        fixedAmountDiscount: values.fixedAmountDiscount ?? null,
-        categorySlug: values.categorySlug.trim(),
-        sizeType: values.sizeType.trim(),
+        descriptionAr: values.descriptionAr,
+        basePrice: values.basePrice,
+        categoryId: values.categoryId,
+        sizeTypeId: values.sizeTypeId,
         isActive: values.isActive,
         isFeatured: values.isFeatured,
-        colors: resolvedColors.map((c) => ({
-          colorName: c.colorName,
-          isDefault: c.isDefault,
-          images: c.images.map((img) => ({
-            imageUrl: img.imageUrl,
-            displayOrder: img.displayOrder,
-            isMain: img.isMain,
-            altText: img.altText,
-          })),
-          sizes: c.sizes.map((s) => ({
-            sizeName: s.sizeName,
-            availableQuantity: Number(s.availableQuantity),
-            priceOverride: s.priceOverride != null ? Number(s.priceOverride) : null,
-          })),
-        })),
-      };
-      const batchRequest: AddProductBatchRequest = { products: [productItem] };
-      await createMutation.mutateAsync(batchRequest);
+        colors: resolvedColors,
+        displayImages: useDisplayImages ? resolvedDisplayImages : null,
+        isDiscountActive: values.isDiscountActive,
+        discountType: values.isDiscountActive ? values.discountType : null,
+        discountValue: values.isDiscountActive ? values.discountValue : null,
+        discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
+        discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
+      });
     }
   };
 
   const products = data?.data?.items ?? [];
   const pagination = data?.data;
 
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">المنتجات</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            {pagination?.totalCount ?? 0} منتج إجمالاً
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">{pagination?.totalCount ?? 0} منتج إجمالاً</p>
         </div>
         <Button onClick={openCreate} className="gap-2">
           <Plus className="h-4 w-4" /> إضافة منتج
@@ -387,16 +466,27 @@ export default function Products() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="البحث في المنتجات..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pr-9"
+            className="pr-10 pl-3"
           />
         </div>
+        <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setPage(1); }}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="الفئة" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">جميع الفئات</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id}>{cat.nameAr}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={filterActive} onValueChange={(v) => { setFilterActive(v); setPage(1); }}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="الحالة" />
@@ -407,6 +497,10 @@ export default function Products() {
             <SelectItem value="inactive">غير نشط</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          {pagination?.totalCount ?? 0} نتيجة
+        </div>
       </div>
 
       {/* Product Grid */}
@@ -420,418 +514,406 @@ export default function Products() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {products.map((product) => (
-            <Card key={product.id} className="overflow-hidden group hover:shadow-md transition-shadow">
-              <div className="relative aspect-video bg-gray-100 overflow-hidden">
-                {product.mainImageUrl ? (
-                  <img
-                    src={`${BASE_URL}${product.mainImageUrl}`}
-                    alt={product.nameAr}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      img.onerror = null;
-                      // Use inline transparent pixel to avoid repeated network retries for missing placeholders.
-                      img.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <Image className="h-10 w-10 text-gray-300" />
-                  </div>
-                )}
-                {product.isFeatured && (
-                  <div className="absolute top-2 left-2">
-                    <Badge variant="warning" className="gap-1">
-                      <Star className="h-3 w-3" /> مميز
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {products.map((product) => {
+            // Correct image priority per API docs
+            const cardImage = product.listingMainImageUrl ?? product.mainImageUrl;
+
+            return (
+              <Card key={product.id} className="overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="relative aspect-square bg-gray-100 overflow-hidden">
+                  <ProductImage src={cardImage} alt={product.nameAr} />
+                  {product.isFeatured && (
+                    <div className="absolute top-2 left-2">
+                      <Badge variant="warning" className="gap-1">
+                        <Star className="h-3 w-3" /> مميز
+                      </Badge>
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2">
+                    <Badge variant={product.isActive ? "success" : "secondary"}>
+                      {product.isActive ? "نشط" : "غير نشط"}
                     </Badge>
                   </div>
-                )}
-                <div className="absolute top-2 right-2">
-                  <Badge variant={product.isActive ? "success" : "secondary"}>
-                    {product.isActive ? "نشط" : "غير نشط"}
-                  </Badge>
+                  {product.hasDiscount && (
+                    <div className="absolute bottom-2 left-2">
+                      <Badge variant="destructive" className="gap-1 text-xs">
+                        <Tag className="h-3 w-3" />
+                        {product.discountType === "Percentage"
+                          ? `خصم %${product.discountValue}`
+                          : `خصم ${product.discountValue} ج.م`}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-sm truncate mb-1">{product.nameAr}</h3>
-                <p className="text-xs text-muted-foreground truncate mb-2">{product.categoryName}</p>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="font-bold text-blue-600">{formatCurrency(product.discountedPrice || product.basePrice)}</span>
-                    {product.discountPercentage > 0 && (
-                      <span className="ml-1 text-xs text-muted-foreground line-through">{formatCurrency(product.basePrice)}</span>
-                    )}
+                <CardContent className="p-3 text-right">
+                  <h3 className="font-semibold text-sm truncate mb-1" dir="rtl">{product.nameAr}</h3>
+                  <p className="text-xs text-muted-foreground truncate mb-2" dir="rtl">{product.categoryName}</p>
+                  <div className="flex items-center justify-between mb-3" dir="rtl">
+                    <div className="flex flex-col text-right">
+                      <span className="font-bold text-blue-600 text-sm">{formatCurrency(product.finalPrice)}</span>
+                      {product.hasDiscount && (
+                        <span className="text-xs text-muted-foreground line-through">{formatCurrency(product.originalPrice)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>{product.viewCount}</span> <Eye className="h-3 w-3" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Eye className="h-3 w-3" /> {product.viewCount}
+                  <div className="flex gap-2" dir="rtl">
+                    <Button size="sm" variant="outline" className="flex-1 gap-1 h-8 text-xs" onClick={() => openEdit(product)}>
+                      <Pencil className="h-3 w-3" /> تعديل
+                    </Button>
+                    <Button size="sm" variant="destructive" className="gap-1 h-8 px-2" onClick={() => openDelete(product)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => openEdit(product)}>
-                    <Pencil className="h-3 w-3" /> تعديل
-                  </Button>
-                  <Button size="sm" variant="destructive" className="gap-1" onClick={() => openDelete(product)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline" size="sm"
-            disabled={!pagination.hasPreviousPage}
-            onClick={() => setPage((p) => p - 1)}
-          >
+          <Button variant="outline" size="sm" disabled={!pagination.hasPreviousPage} onClick={() => setPage((p) => p - 1)}>
+            <ChevronRight className="h-4 w-4" />
             السابق
           </Button>
           <span className="text-sm text-muted-foreground">
             صفحة {pagination.pageNumber} من {pagination.totalPages}
           </span>
-          <Button
-            variant="outline" size="sm"
-            disabled={!pagination.hasNextPage}
-            onClick={() => setPage((p) => p + 1)}
-          >
+          <Button variant="outline" size="sm" disabled={!pagination.hasNextPage} onClick={() => setPage((p) => p + 1)}>
             التالي
+            <ChevronLeft className="h-4 w-4" />
           </Button>
         </div>
       )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedProduct ? "تعديل المنتج" : "إضافة منتج جديد"}</DialogTitle>
             <DialogDescription>
               {selectedProduct ? "قم بتحديث تفاصيل المنتج أدناه." : "أدخل التفاصيل لإنشاء منتج جديد."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Basic fields */}
-            <div className="space-y-2">
-              <Label>اسم المنتج (بالعربية)</Label>
-              <Input {...register("nameAr")} placeholder="اسم المنتج" />
-              {errors.nameAr && <p className="text-xs text-red-500">{errors.nameAr.message}</p>}
-            </div>
 
-            {/* Slug */}
-            {!selectedProduct ? (
-              <div className="space-y-2">
-                <Label>الرابط المختصر (اختياري)</Label>
-                <Input {...register("slug")} placeholder="product-slug" />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label className="text-muted-foreground text-xs">الرابط المختصر</Label>
-                <p className="text-sm bg-gray-50 border rounded px-3 py-2 text-gray-600 font-mono">{selectedProduct.slug}</p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>الوصف (بالعربية)</Label>
-              <Textarea {...register("descriptionAr")} placeholder="وصف المنتج" rows={3} />
-            </div>
-
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Basic info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2 md:col-span-2">
+                <Label>اسم المنتج (بالعربية) *</Label>
+                <Input {...register("nameAr")} placeholder="اسم المنتج" />
+                {errors.nameAr && <p className="text-xs text-red-500">{errors.nameAr.message}</p>}
+              </div>
+
               <div className="space-y-2">
-                <Label>السعر الأساسي (ج.م)</Label>
+                <Label>السعر الأساسي (ج.م) *</Label>
                 <Input type="number" step="0.01" {...register("basePrice")} />
                 {errors.basePrice && <p className="text-xs text-red-500">{errors.basePrice.message}</p>}
               </div>
+
               <div className="space-y-2">
-                <Label>نسبة الخصم % (اختياري)</Label>
-                <Input type="number" step="0.01" min={0} max={100} {...register("percentageDiscount")} />
-                {errors.percentageDiscount && <p className="text-xs text-red-500">{errors.percentageDiscount.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>الخصم الثابت (ج.م) (اختياري)</Label>
-                <Input type="number" step="0.01" min={0} {...register("fixedAmountDiscount")} />
-                {errors.fixedAmountDiscount && <p className="text-xs text-red-500">{errors.fixedAmountDiscount.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>الفئة</Label>
-                <Select
-                  value={selectedProduct ? watch("categoryId") : watch("categorySlug")}
-                  onValueChange={(v) => {
-                    if (selectedProduct) setValue("categoryId", v);
-                    else setValue("categorySlug", v);
-                  }}
-                >
+                <Label>الفئة *</Label>
+                <Select value={watch("categoryId")} onValueChange={(v) => setValue("categoryId", v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="اختر الفئة" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={selectedProduct ? cat.id : cat.slug}>
-                        {cat.nameAr}
-                      </SelectItem>
+                      <SelectItem key={cat.id} value={cat.id}>{cat.nameAr}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.categoryId && <p className="text-xs text-red-500">{errors.categoryId.message}</p>}
+              </div>
+
+              {!selectedProduct && (
+                <div className="space-y-2">
+                  <Label>معرّف نوع المقاس (sizeTypeId) *</Label>
+                  <Input {...register("sizeTypeId")} placeholder="UUID نوع المقاس" />
+                </div>
+              )}
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>الوصف (بالعربية)</Label>
+                <Textarea {...register("descriptionAr")} placeholder="وصف المنتج" rows={3} />
               </div>
             </div>
-
-            {!selectedProduct && (
-              <div className="space-y-2">
-                <Label>نوع المقاس</Label>
-                <Input {...register("sizeType")} placeholder="مثل: ملابس، أحذية" />
-              </div>
-            )}
 
             <div className="flex gap-6">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" {...register("isActive")} className="rounded" />
-                نشط
+                <input type="checkbox" {...register("isActive")} className="rounded" /> نشط
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" {...register("isFeatured")} className="rounded" />
-                مميز
+                <input type="checkbox" {...register("isFeatured")} className="rounded" /> مميز
               </label>
             </div>
 
-            {/* Dynamic colors section */}
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold">الألوان</Label>
-                  <Button type="button" size="sm" variant="outline" onClick={addColor} className="gap-1">
-                    <Plus className="h-3 w-3" /> إضافة لون
-                  </Button>
+            {/* Discount Fields */}
+            <div className="space-y-4 border p-4 rounded-lg bg-gray-50/50">
+              <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-blue-700">
+                <input type="checkbox" {...register("isDiscountActive")} className="rounded" />
+                إضافة خصم مباشر للمنتج
+              </label>
+              
+              {watch("isDiscountActive") && (
+                <div className="space-y-4 pt-2 border-t">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>نوع الخصم</Label>
+                      <Select value={String(watch("discountType") ?? 0)} onValueChange={(v) => setValue("discountType", parseInt(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">نسبة مئوية (%)</SelectItem>
+                          <SelectItem value="1">مبلغ ثابت (ج.م)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>القيمة</Label>
+                      <Input type="number" step="0.01" min="0" {...register("discountValue")} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>تاريخ البداية (اختياري)</Label>
+                      <Input type="datetime-local" {...register("discountStartDate")} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>تاريخ النهاية (اختياري)</Label>
+                      <Input type="datetime-local" {...register("discountEndDate")} />
+                    </div>
+                  </div>
+                  {selectedProduct && (
+                    <p className="text-xs text-orange-600">تسجيل: الخصم سيتم حفظه في القواعد المركزية، ولن يظهر بعد حفظه في هذه الشاشة عند التعديل مستقبلاً.</p>
+                  )}
                 </div>
+              )}
+            </div>
 
-                {colors.map((color, ci) => (
-                  <div key={ci} className="border rounded-lg p-4 space-y-3 bg-gray-50/50">
-                    {/* Color header */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">لون {ci + 1}</span>
-                      {colors.length > 1 && (
-                        <Button
-                          type="button" size="sm" variant="ghost"
-                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => removeColor(ci)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+            {/* Display Images */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-semibold">صور البطاقة (Display Images)</Label>
+                  <p className="text-xs text-muted-foreground mt-1">صورتان: الرئيسية (SortOrder 0) + التمرير (SortOrder 1)</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useDisplayImages}
+                    onChange={(e) => setUseDisplayImages(e.target.checked)}
+                    className="rounded"
+                  />
+                  تفعيل
+                </label>
+              </div>
+
+              {useDisplayImages && (
+                <div className="grid grid-cols-2 gap-3">
+                  {displayImages.map((d, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <Label className="text-xs">{idx === 0 ? "الصورة الرئيسية (SortOrder 0)" : "صورة التمرير (SortOrder 1)"}</Label>
+                      {d.previewUrl ? (
+                        <div className="relative h-32 rounded overflow-hidden border bg-gray-100">
+                          <img src={d.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => clearDisplayImageFile(idx)}
+                            className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow">
+                            <X className="h-3 w-3 text-red-500" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded cursor-pointer bg-gray-50 hover:bg-gray-100 gap-1">
+                          <Upload className="h-5 w-5 text-gray-400" />
+                          <span className="text-xs text-gray-500">اختر صورة</span>
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={(e) => { const file = e.target.files?.[0]; if (file) setDisplayImageFile(idx, file); }} />
+                        </label>
                       )}
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                    {/* Color name + isDefault */}
-                    <div className="grid grid-cols-2 gap-3 items-end">
-                      <div className="space-y-1">
-                        <Label className="text-xs">اسم اللون</Label>
-                        <Input
-                          value={color.colorName}
-                          onChange={(e) => updateColor(ci, "colorName", e.target.value)}
-                          placeholder="مثل: أسود، أحمر"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer pb-1">
-                        <input
-                          type="checkbox"
-                          checked={color.isDefault}
-                          onChange={(e) => updateColor(ci, "isDefault", e.target.checked)}
-                          className="rounded"
-                        />
-                        اللون الافتراضي
-                      </label>
+            {/* Colors */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">الألوان والمخزون</Label>
+                <Button type="button" size="sm" variant="outline" onClick={addColor} className="gap-1">
+                  <Plus className="h-3 w-3" /> إضافة لون
+                </Button>
+              </div>
+
+              {colors.map((color, ci) => (
+                <div key={ci} className="border rounded-lg p-4 space-y-3 bg-gray-50/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">لون {ci + 1}</span>
+                    {colors.length > 1 && (
+                      <Button type="button" size="sm" variant="ghost"
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => removeColor(ci)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">معرّف اللون (colorId UUID)</Label>
+                      <Input
+                        value={color.colorId}
+                        onChange={(e) => updateColor(ci, "colorId", e.target.value)}
+                        placeholder="UUID"
+                        className="h-8 text-sm font-mono"
+                      />
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">اسم اللون (للعرض)</Label>
+                      <Input
+                        value={color.colorName}
+                        onChange={(e) => updateColor(ci, "colorName", e.target.value)}
+                        placeholder="أسود، أحمر..."
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={color.isDefault}
+                      onChange={(e) => updateColor(ci, "isDefault", e.target.checked)} className="rounded" />
+                    اللون الافتراضي
+                  </label>
 
-                    {/* Images */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium">الصور</Label>
-                        <Button
-                          type="button" size="sm" variant="ghost"
-                          className="h-6 text-xs gap-1 px-2"
-                          onClick={() => addImage(ci)}
-                        >
-                          <Plus className="h-3 w-3" /> إضافة صورة
-                        </Button>
-                      </div>
+                  {/* Color Images */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">صور اللون</Label>
+                      <Button type="button" size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => addImage(ci)}>
+                        <Plus className="h-3 w-3" /> إضافة صورة
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       {color.images.map((img, ii) => (
-                        <div key={ii} className="border rounded p-3 space-y-2 bg-white">
+                        <div key={ii} className="border rounded p-2 space-y-2 bg-white">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-gray-500">صورة {ii + 1}</span>
                             {color.images.length > 1 && (
-                              <Button
-                                type="button" size="sm" variant="ghost"
-                                className="h-5 w-5 p-0 text-red-400 hover:text-red-600"
-                                onClick={() => removeImage(ci, ii)}
-                              >
+                              <Button type="button" size="sm" variant="ghost"
+                                className="h-5 w-5 p-0 text-red-400" onClick={() => removeImage(ci, ii)}>
                                 <X className="h-3 w-3" />
                               </Button>
                             )}
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">الصورة</Label>
-                            {img.previewUrl ? (
-                              <div className="relative w-full h-28 rounded overflow-hidden border bg-gray-100">
-                                <img src={img.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
-                                <button
-                                  type="button"
-                                  onClick={() => clearImageFile(ci, ii)}
-                                  className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow hover:bg-red-50"
-                                >
-                                  <X className="h-3 w-3 text-red-500" />
-                                </button>
-                              </div>
-                            ) : (
-                              <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors gap-1">
-                                <Image className="h-6 w-6 text-gray-400" />
-                                <span className="text-xs text-gray-500">اضغط لاختيار صورة</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) setImageFile(ci, ii, file);
-                                  }}
-                                />
-                              </label>
-                            )}
+                          {img.previewUrl ? (
+                            <div className="relative h-24 rounded overflow-hidden border bg-gray-100">
+                              <img src={img.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => clearImageFile(ci, ii)}
+                                className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow">
+                                <X className="h-3 w-3 text-red-500" />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded cursor-pointer bg-gray-50 hover:bg-gray-100 gap-1">
+                              <Image className="h-5 w-5 text-gray-400" />
+                              <span className="text-xs text-gray-500">اختر صورة</span>
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={(e) => { const file = e.target.files?.[0]; if (file) setImageFile(ci, ii, file); }} />
+                            </label>
+                          )}
+                          <div className="flex gap-2">
+                            <label className="flex items-center gap-1 text-xs cursor-pointer">
+                              <input type="checkbox" checked={img.isMain}
+                                onChange={(e) => updateImage(ci, ii, "isMain", e.target.checked)} className="rounded" />
+                              رئيسية
+                            </label>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">النص البديل</Label>
-                              <Input
-                                value={img.altText}
-                                onChange={(e) => updateImage(ci, ii, "altText", e.target.value)}
-                                placeholder="اختياري"
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">ترتيب العرض</Label>
-                              <Input
-                                type="number"
-                                value={img.displayOrder}
-                                onChange={(e) => updateImage(ci, ii, "displayOrder", Number(e.target.value))}
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                          </div>
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={img.isMain}
-                              onChange={(e) => updateImage(ci, ii, "isMain", e.target.checked)}
-                              className="rounded"
-                            />
-                            الصورة الرئيسية
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Sizes */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium">المقاسات</Label>
-                        <Button
-                          type="button" size="sm" variant="ghost"
-                          className="h-6 text-xs gap-1 px-2"
-                          onClick={() => addSize(ci)}
-                        >
-                          <Plus className="h-3 w-3" /> إضافة مقاس
-                        </Button>
-                      </div>
-                      {color.sizes.map((s, si) => (
-                        <div key={si} className="border rounded p-3 space-y-2 bg-white">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500">مقاس {si + 1}</span>
-                            {color.sizes.length > 1 && (
-                              <Button
-                                type="button" size="sm" variant="ghost"
-                                className="h-5 w-5 p-0 text-red-400 hover:text-red-600"
-                                onClick={() => removeSize(ci, si)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">اسم المقاس</Label>
-                              <Input
-                                value={s.sizeName}
-                                onChange={(e) => updateSize(ci, si, "sizeName", e.target.value)}
-                                placeholder="M, L, XL"
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">الكمية المتاحة</Label>
-                              <Input
-                                type="number"
-                                min={0}
-                                value={s.availableQuantity}
-                                onChange={(e) => updateSize(ci, si, "availableQuantity", Number(e.target.value))}
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">تجاوز السعر</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={s.priceOverride ?? ""}
-                                onChange={(e) =>
-                                  updateSize(ci, si, "priceOverride", e.target.value === "" ? null : Number(e.target.value))
-                                }
-                                placeholder="اختياري"
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                          </div>
+                          <Input
+                            value={img.altText}
+                            onChange={(e) => updateImage(ci, ii, "altText", e.target.value)}
+                            placeholder="النص البديل"
+                            className="h-7 text-xs"
+                          />
                         </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Sizes */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">المقاسات والمخزون</Label>
+                      <Button type="button" size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => addSize(ci)}>
+                        <Plus className="h-3 w-3" /> إضافة مقاس
+                      </Button>
+                    </div>
+                    {color.sizes.map((s, si) => (
+                      <div key={si} className="grid grid-cols-4 gap-2 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs">معرّف المقاس (sizeId)</Label>
+                          <Input value={s.sizeId} onChange={(e) => updateSize(ci, si, "sizeId", e.target.value)}
+                            placeholder="UUID" className="h-8 text-xs font-mono" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">الاسم</Label>
+                          <Input value={s.sizeName} onChange={(e) => updateSize(ci, si, "sizeName", e.target.value)}
+                            placeholder="L, XL" className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">الكمية</Label>
+                          <Input type="number" min={0} value={s.availableQuantity}
+                            onChange={(e) => updateSize(ci, si, "availableQuantity", Number(e.target.value))}
+                            className="h-8 text-xs" />
+                        </div>
+                        <div className="flex items-end gap-1">
+                          {color.sizes.length > 1 && (
+                            <Button type="button" size="sm" variant="ghost"
+                              className="h-8 w-8 p-0 text-red-400" onClick={() => removeSize(ci, si)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                إلغاء
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Spinner size="sm" className="ml-2" /> : null}
-                {selectedProduct ? "تحديث" : "إنشاء"}
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
+              <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending} className="gap-2">
+                {(isSubmitting || createMutation.isPending || updateMutation.isPending) && <Spinner className="h-4 w-4" />}
+                {selectedProduct ? "حفظ التغييرات" : "إنشاء المنتج"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete confirm dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>\u062d\u0630\u0641 \u0627\u0644\u0645\u0646\u062a\u062c</DialogTitle>
+            <DialogTitle>حذف المنتج</DialogTitle>
             <DialogDescription>
-              \u0647\u0644 \u0623\u0646\u062a \u0645\u062a\u0623\u0643\u062f \u0645\u0646 \u062d\u0630\u0641 "{selectedProduct?.nameAr}"? \u0644\u0627 \u064a\u0645\u0643\u0646 \u0627\u0644\u062a\u0631\u0627\u062c\u0639 \u0639\u0646 \u0647\u0630\u0647 \u0627\u0644\u0639\u0645\u0644\u064a\u0629.
+              هل تريد حذف منتج "{selectedProduct?.nameAr}"؟ هذا الإجراء لا يمكن التراجع عنه.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              \u0625\u0644\u063a\u0627\u0621
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>إلغاء</Button>
             <Button
               variant="destructive"
-              disabled={deleteMutation.isPending}
               onClick={() => selectedProduct && deleteMutation.mutate(selectedProduct.id)}
+              disabled={deleteMutation.isPending}
+              className="gap-2"
             >
-              {deleteMutation.isPending ? <Spinner size="sm" className="ml-2" /> : null}
-              \u062d\u0630\u0641
+              {deleteMutation.isPending && <Spinner className="h-4 w-4" />}
+              تأكيد الحذف
             </Button>
           </DialogFooter>
         </DialogContent>

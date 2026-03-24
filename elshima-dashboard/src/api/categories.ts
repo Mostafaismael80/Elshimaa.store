@@ -1,43 +1,51 @@
-import { apiClient } from "./client";
+import { apiClient } from './client';
 import type {
   ApiResponse,
   CategoryResponse,
   CreateCategoryRequest,
   UpdateCategoryRequest,
-} from "../types";
+} from '../types';
+
+type CategoryListResponse = ApiResponse<CategoryResponse[]>;
+type CategoryDetailResponse = ApiResponse<CategoryResponse>;
 
 export const categoriesApi = {
-  getAll: async (includeInactive = false): Promise<ApiResponse<CategoryResponse[]>> => {
-    const res = await apiClient.get<ApiResponse<CategoryResponse[]>>("/categories", {
-      params: { includeInactive },
-    });
-    return res.data;
+  /** GET /api/categories?includeInactive=true|false */
+  getAll(includeInactive = false): Promise<CategoryListResponse> {
+    return apiClient.get('/categories', { params: { includeInactive } }).then((r) => r.data);
   },
 
-  getById: async (id: string): Promise<ApiResponse<CategoryResponse>> => {
-    const res = await apiClient.get<ApiResponse<CategoryResponse>>(`/categories/${id}`);
-    return res.data;
+  /** GET /api/categories/root */
+  getRoots(): Promise<CategoryListResponse> {
+    return apiClient.get('/categories/root').then((r) => r.data);
   },
 
-  create: async (data: CreateCategoryRequest): Promise<ApiResponse<CategoryResponse>> => {
-    const res = await apiClient.post<ApiResponse<CategoryResponse>>("/categories", data);
-    return res.data;
+  /** GET /api/categories/{id} */
+  getById(id: string): Promise<CategoryDetailResponse> {
+    return apiClient.get(`/categories/${id}`).then((r) => r.data);
   },
 
-  createWithImage: async (formData: FormData): Promise<ApiResponse<CategoryResponse>> => {
-    const res = await apiClient.post<ApiResponse<CategoryResponse>>("/categories/with-image", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return res.data;
+  /** POST /api/categories — JSON body (image URL pre-uploaded) */
+  create(data: CreateCategoryRequest): Promise<CategoryDetailResponse> {
+    return apiClient.post('/categories', data).then((r) => r.data);
   },
 
-  update: async (id: string, data: UpdateCategoryRequest): Promise<ApiResponse<CategoryResponse>> => {
-    const res = await apiClient.put<ApiResponse<CategoryResponse>>(`/categories/${id}`, data);
-    return res.data;
+  /** POST /api/categories/with-image — multipart form data */
+  createWithImage(formData: FormData): Promise<CategoryDetailResponse> {
+    return apiClient
+      .post('/categories/with-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
   },
 
-  delete: async (id: string): Promise<ApiResponse<null>> => {
-    const res = await apiClient.delete<ApiResponse<null>>(`/categories/${id}`);
-    return res.data;
+  /** PUT /api/categories/{id} */
+  update(id: string, data: UpdateCategoryRequest): Promise<CategoryDetailResponse> {
+    return apiClient.put(`/categories/${id}`, data).then((r) => r.data);
+  },
+
+  /** DELETE /api/categories/{id} — soft delete */
+  delete(id: string): Promise<ApiResponse<null>> {
+    return apiClient.delete(`/categories/${id}`).then((r) => r.data);
   },
 };

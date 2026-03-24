@@ -88,12 +88,12 @@ export default function Coupons() {
     const dtMap: Record<string, string> = { Percentage: "0", FixedAmount: "1" };
     reset({
       code: c.code,
-      description: c.description,
+      description: c.description ?? undefined,
       discountType: dtMap[c.discountType] ?? "0",
       discountValue: c.discountValue,
-      minimumOrderAmount: c.minimumOrderAmount,
-      maximumDiscountAmount: c.maximumDiscountAmount,
-      usageLimit: c.usageLimit,
+      minimumOrderAmount: c.minimumOrderAmount ?? undefined,
+      maximumDiscountAmount: c.maximumDiscountAmount ?? undefined,
+      usageLimit: c.usageLimit ?? undefined,
       startDate: c.startDate?.slice(0, 16),
       endDate: c.endDate?.slice(0, 16),
       isActive: c.isActive,
@@ -148,20 +148,20 @@ export default function Coupons() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الكود</TableHead>
-                <TableHead>النوع</TableHead>
-                <TableHead>القيمة</TableHead>
-                <TableHead>الحد الأدنى للطلب</TableHead>
-                <TableHead>الاستخدام</TableHead>
-                <TableHead>الصلاحية</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead className="text-left">الإجراءات</TableHead>
+                <TableHead className="text-right">الكود</TableHead>
+                <TableHead className="text-right">النوع</TableHead>
+                <TableHead className="text-right">القيمة</TableHead>
+                <TableHead className="text-right">الحد الأدنى للطلب</TableHead>
+                <TableHead className="text-right">الاستخدام</TableHead>
+                <TableHead className="text-right">الصلاحية</TableHead>
+                <TableHead className="text-right">الحالة</TableHead>
+                <TableHead className="text-right">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {coupons.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-sm">{c.code}</span>
                       <button onClick={() => copyCode(c.code)} className="text-muted-foreground hover:text-blue-600 transition-colors">
@@ -170,29 +170,29 @@ export default function Coupons() {
                     </div>
                     {c.description && <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>}
                   </TableCell>
-                  <TableCell className="text-sm">{c.discountType}</TableCell>
-                  <TableCell className="font-semibold text-blue-600">
+                  <TableCell className="text-right text-sm">{c.discountType}</TableCell>
+                  <TableCell className="text-right font-semibold text-blue-600">
                     {c.discountType === "Percentage" ? `${c.discountValue}%` : formatCurrency(c.discountValue)}
                   </TableCell>
-                  <TableCell className="text-sm">{c.minimumOrderAmount > 0 ? formatCurrency(c.minimumOrderAmount) : "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right text-sm">{(c.minimumOrderAmount ?? 0) > 0 ? formatCurrency(c.minimumOrderAmount ?? 0) : "—"}</TableCell>
+                  <TableCell className="text-right">
                     <div className="text-sm">
                       <span className="font-medium">{c.usedCount}</span>
                       {c.usageLimit && <span className="text-muted-foreground"> / {c.usageLimit}</span>}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs">
+                  <TableCell className="text-right text-xs">
                     <div>
                       <p>{formatDateShort(c.startDate)}</p>
                       <p className="text-muted-foreground">→ {formatDateShort(c.endDate)}</p>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Badge variant={c.isValid && c.isActive ? "success" : "secondary"}>
                       {c.isValid && c.isActive ? "صالح" : "منتهي"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <div className="flex justify-start gap-2">
                       <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                         <Pencil className="h-3 w-3" />

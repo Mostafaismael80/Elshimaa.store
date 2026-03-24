@@ -15,13 +15,14 @@ import {
 import {
   ShoppingCart,
   Package,
-  Users,
   TrendingUp,
   ArrowUpRight,
   Clock,
+  FolderTree,
 } from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { productsApi } from "../api/products";
+import { categoriesApi } from "../api/categories";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { LoadingPage } from "../components/ui/spinner";
 import { formatCurrency, formatDate, ORDER_STATUS_COLORS } from "../lib/utils";
@@ -73,7 +74,12 @@ export default function Dashboard() {
     queryFn: () => productsApi.getAll({ pageNumber: 1, pageSize: 1 }),
   });
 
-  if (ordersLoading || productsLoading) return <LoadingPage />;
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["categories", "dashboard"],
+    queryFn: () => categoriesApi.getAll(true),
+  });
+
+  if (ordersLoading || productsLoading || categoriesLoading) return <LoadingPage />;
 
   const orders: OrderResponse[] = ordersData?.data?.items ?? [];
   const totalRevenue = orders
@@ -82,10 +88,11 @@ export default function Dashboard() {
   const totalOrders = ordersData?.data?.totalCount ?? 0;
   const totalProducts = productsData?.data?.totalCount ?? 0;
 
-  // Unique customers from orders
-  const uniqueCustomers = new Set(
-    orders.map((o) => o.customerEmail).filter(Boolean)
-  ).size;
+  // Calculate total categories (including subcategories)
+  const countCategories = (cats: any[]): number => 
+    cats.reduce((sum, cat) => sum + 1 + countCategories(cat.subCategories ?? []), 0);
+  
+  const totalCategories = countCategories(categoriesData?.data ?? []);
 
   // Orders by status
   const statusCounts: Record<string, number> = {};
@@ -138,9 +145,9 @@ export default function Dashboard() {
           color="bg-purple-100"
         />
         <KpiCard
-          title="العملاء الفريدون"
-          value={uniqueCustomers.toLocaleString()}
-          icon={<Users className="h-6 w-6 text-orange-600" />}
+          title="إجمالي الأقسام"
+          value={totalCategories.toLocaleString()}
+          icon={<FolderTree className="h-6 w-6 text-orange-600" />}
           color="bg-orange-100"
         />
       </div>
@@ -233,20 +240,20 @@ export default function Dashboard() {
                 <tbody>
                   {recentOrders.map((order) => (
                     <tr key={order.id} className="border-b hover:bg-muted/20 transition-colors">
-                      <td className="px-6 py-3 font-mono text-xs text-blue-600">{order.orderNumber}</td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-3 text-right font-mono text-xs text-blue-600">{order.orderNumber}</td>
+                      <td className="px-6 py-3 text-right">
                         <div>
                           <p className="font-medium">{order.customerName}</p>
                           <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
                         </div>
                       </td>
-                      <td className="px-6 py-3 font-medium">{formatCurrency(order.totalAmount)}</td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-3 text-right font-medium">{formatCurrency(order.totalAmount)}</td>
+                      <td className="px-6 py-3 text-right">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(order.orderStatus)}`}>
                           {order.orderStatus}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-muted-foreground">{formatDate(order.createdAt)}</td>
+                      <td className="px-6 py-3 text-right text-muted-foreground">{formatDate(order.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>

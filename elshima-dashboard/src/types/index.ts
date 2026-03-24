@@ -4,7 +4,7 @@ export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
-  errors: string[];
+  errors: string[] | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -47,16 +47,21 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface RefreshTokenRequest {
+  token: string;
+  refreshToken: string;
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export interface CategoryResponse {
   id: string;
   nameAr: string;
   slug: string;
-  descriptionAr: string;
-  imageUrl: string;
+  descriptionAr: string | null;
+  imageUrl: string | null;
   parentCategoryId: string | null;
-  parentCategoryName: string;
+  parentCategoryName: string | null;
   displayOrder: number;
   isActive: boolean;
   productCount: number;
@@ -70,58 +75,97 @@ export interface CreateCategoryRequest {
   parentCategoryId?: string | null;
   displayOrder?: number;
   isActive: boolean;
+  discountType?: number | null;
+  discountValue?: number | null;
+  isDiscountActive?: boolean | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
 }
 
 export type UpdateCategoryRequest = CreateCategoryRequest;
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
-export interface ProductColorImage {
+/** A display image used in product cards (listing/hover). SortOrder 0 = main, 1 = hover */
+export interface ProductDisplayImage {
   id: string;
-  imageUrl: string;
-  displayOrder: number;
-  isMain: boolean;
-  altText: string;
+  imageUrl: string;       // full URL resolved by IPictureUrlResolver
+  sortOrder: number;      // 0 = ListingMain, 1 = ListingHover
+  altText: string | null;
 }
 
+/** Color-specific gallery image (detail page only) */
+export interface ProductColorImage {
+  id: string;
+  imageUrl: string;       // full URL
+  displayOrder: number;
+  isMain: boolean;
+  altText: string | null;
+}
+
+/** Size variant for a specific color */
 export interface ProductVariant {
   id: string;
   sizeId: string;
   sizeName: string;
   availableQuantity: number;
-  price: number;
+  priceOverride: number | null;
   isActive: boolean;
   isLowStock: boolean;
 }
 
+/** Color with its gallery images and size variants */
 export interface ProductColor {
   id: string;
   colorId: string;
   colorName: string;
-  colorHex: string;
+  colorHex: string | null;
   isDefault: boolean;
-  images: ProductColorImage[];
-  variants: ProductVariant[];
+  images: ProductColorImage[];   // populated only in detail endpoint
+  variants: ProductVariant[];    // populated only in detail endpoint
 }
 
+/**
+ * Product as returned by both listing and detail endpoints.
+ *
+ * Image priority for product cards:
+ *   primary = listingMainImageUrl ?? mainImageUrl
+ *   hover   = listingHoverImageUrl (may be null)
+ *
+ * Price display:
+ *   Always show: finalPrice
+ *   Strikethrough: originalPrice  ONLY when hasDiscount == true
+ */
 export interface ProductResponse {
   id: string;
   nameAr: string;
   slug: string;
-  descriptionAr: string;
+  descriptionAr: string | null;
+
+  // Pricing (computed, never stored)
   basePrice: number;
-  percentageDiscount?: number | null;
-  fixedAmountDiscount?: number | null;
-  discountedPrice: number;
-  discountPercentage: number;
+  originalPrice: number;        // same as basePrice when no discount
+  finalPrice: number;           // discounted price (always present)
+  hasDiscount: boolean;
+  discountValue: number | null; // null when hasDiscount == false
+  discountType: 'Percentage' | 'FixedAmount' | null;
+  discountSource: 'Product' | 'Category' | null;
+
   categoryId: string;
   categoryName: string;
   isActive: boolean;
   isFeatured: boolean;
   viewCount: number;
-  mainImageUrl: string;
+
+  // Images — listing only uses these three + displayImages[]
+  mainImageUrl: string | null;          // legacy fallback (default color's IsMain image)
+  listingMainImageUrl: string | null;   // ProductDisplayImage SortOrder 0
+  listingHoverImageUrl: string | null;  // ProductDisplayImage SortOrder 1
+
+  displayImages: ProductDisplayImage[]; // included in listing response
+  colors: ProductColor[];               // empty in listing, filled in detail
+
   createdAt: string;
-  colors: ProductColor[];
 }
 
 export interface ProductFilterParams extends PaginationParams {
@@ -133,71 +177,69 @@ export interface ProductFilterParams extends PaginationParams {
   hasDiscount?: boolean;
 }
 
-export interface CreateProductRequest {
-  nameAr: string;
-  descriptionAr?: string;
-  basePrice: number;
-  percentageDiscount?: number | null;
-  fixedAmountDiscount?: number | null;
-  categoryId: string;
-  sizeTypeId?: string;
-  isActive: boolean;
-  isFeatured: boolean;
-  colorId?: string;
-  sizeId?: string;
-  availableQuantity?: number;
-  priceOverride?: number | null;
-}
+// ─── Product Create / Update DTOs (match POST /api/products) ──────────────────
 
-/** Request body for POST /products/batch — add product(s) using slugs/names */
-export interface AddProductImageItem {
-  imageUrl: string;
+export interface CreateColorImageDto {
+  imageUrl: string;   // relative path from /api/images/upload
   displayOrder: number;
   isMain: boolean;
   altText?: string;
 }
 
-export interface AddProductSizeItem {
-  sizeName: string;
+export interface CreateVariantDto {
+  sizeId: string;
   availableQuantity: number;
-  priceOverride: number | null;
+  priceOverride?: number | null;
 }
 
-export interface AddProductColorItem {
-  colorName: string;
+export interface CreateColorDto {
+  colorId: string;
   isDefault: boolean;
-  images: AddProductImageItem[];
-  sizes: AddProductSizeItem[];
+  images: CreateColorImageDto[];
+  variants: CreateVariantDto[];
 }
 
-export interface AddProductItem {
+export interface CreateDisplayImageDto {
+  imageUrl: string;   // relative path
+  sortOrder: number;  // 0 or 1
+  altText?: string;
+}
+
+/** POST /api/products */
+export interface CreateProductRequest {
   nameAr: string;
-  slug: string;
-  descriptionAr: string;
+  descriptionAr?: string;
   basePrice: number;
-  percentageDiscount?: number | null;
-  fixedAmountDiscount?: number | null;
-  categorySlug: string;
-  sizeType: string;
+  categoryId: string;
+  sizeTypeId: string;
   isActive: boolean;
   isFeatured: boolean;
-  colors: AddProductColorItem[];
+  colors: CreateColorDto[];
+  displayImages?: CreateDisplayImageDto[] | null; // null = none, exactly 2 when provided
+  discountType?: number | null;
+  discountValue?: number | null;
+  isDiscountActive?: boolean | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
 }
 
-export interface AddProductBatchRequest {
-  products: AddProductItem[];
-}
-
+/** PUT /api/products/{id}
+ *  displayImages: null = keep existing, [] = 400, exactly 2 = replace
+ */
 export interface UpdateProductRequest {
   nameAr: string;
   descriptionAr?: string;
   basePrice: number;
-  percentageDiscount?: number | null;
-  fixedAmountDiscount?: number | null;
   categoryId: string;
   isActive: boolean;
   isFeatured: boolean;
-  colors?: AddProductColorItem[];
+  colors?: CreateColorDto[]; // optional, include to replace colors
+  displayImages?: CreateDisplayImageDto[] | null;
+  discountType?: number | null;
+  discountValue?: number | null;
+  isDiscountActive?: boolean | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
@@ -212,7 +254,7 @@ export interface OrderItem {
   unitPrice: number;
   discountAmount: number;
   totalPrice: number;
-  productImageUrl: string;
+  productImageUrl: string | null;
 }
 
 export interface OrderStatusHistory {
@@ -220,7 +262,8 @@ export interface OrderStatusHistory {
   oldStatus: string;
   newStatus: string;
   changedBy: string;
-  notes: string;
+  notes: string | null;
+  trackingNumber: string | null;
   createdAt: string;
 }
 
@@ -229,22 +272,23 @@ export interface OrderResponse {
   orderNumber: string;
   userId: string | null;
   customerName: string;
-  customerEmail: string;
+  customerEmail: string | null;
   customerPhone: string;
+  governorateId: string;
   governorateName: string;
   city: string;
   detailedAddress: string;
-  notes: string;
+  notes: string | null;
   subTotal: number;
   discountAmount: number;
-  couponCode: string;
+  couponCode: string | null;
   couponDiscountAmount: number;
   shippingCost: number;
   totalAmount: number;
   paymentMethod: string;
   paymentStatus: string;
   orderStatus: string;
-  trackingNumber: string;
+  trackingNumber: string | null;
   createdAt: string;
   confirmedAt: string | null;
   shippedAt: string | null;
@@ -255,9 +299,9 @@ export interface OrderResponse {
 }
 
 export interface OrderFilterParams extends PaginationParams {
-  orderStatus?: string;
-  paymentStatus?: string;
-  paymentMethod?: string;
+  orderStatus?: number;
+  paymentStatus?: number;
+  paymentMethod?: number;
   userId?: string;
   fromDate?: string;
   toDate?: string;
@@ -268,6 +312,31 @@ export interface UpdateOrderStatusRequest {
   notes?: string;
   trackingNumber?: string;
 }
+
+// ─── Order status enum values ─────────────────────────────────────────────────
+
+export const ORDER_STATUS = {
+  Pending: 0,
+  Confirmed: 1,
+  Shipped: 2,
+  Delivered: 3,
+  Cancelled: 4,
+} as const;
+
+export const ORDER_STATUS_LABELS: Record<string, string> = {
+  Pending: 'قيد الانتظار',
+  Confirmed: 'مؤكد',
+  Shipped: 'تم الشحن',
+  Delivered: 'تم التسليم',
+  Cancelled: 'ملغي',
+};
+
+export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  Pending: 'معلق',
+  Paid: 'مدفوع',
+  Failed: 'فشل',
+  Refunded: 'مسترد',
+};
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -288,51 +357,66 @@ export interface UserAddressResponse {
   governorateName: string;
   city: string;
   detailedAddress: string;
-  notes: string;
+  notes: string | null;
   isDefault: boolean;
 }
 
 // ─── Discounts ────────────────────────────────────────────────────────────────
 
+/** discountType: 0=Percentage, 1=FixedAmount */
+export const DISCOUNT_TYPE_LABELS: Record<number, string> = {
+  0: 'نسبة مئوية',
+  1: 'مبلغ ثابت',
+};
+
+/** targetType: 0=Product, 1=Category */
+export const DISCOUNT_TARGET_LABELS: Record<number, string> = {
+  0: 'منتج',
+  1: 'فئة',
+};
+
 export interface DiscountResponse {
   id: string;
   name: string;
-  discountType: string;
+  discountType: string; // "Percentage" | "FixedAmount"
   discountValue: number;
-  targetType: string;
+  targetType: string;   // "Product" | "Category"
   targetId: string | null;
-  targetName: string;
+  targetName: string | null;
   startDate: string;
-  endDate: string;
+  endDate: string | null;
   isActive: boolean;
+  isValidNow: boolean;
   createdAt: string;
 }
 
 export interface CreateDiscountRequest {
   name: string;
-  discountType: number;
+  discountType: number;   // 0 or 1
   discountValue: number;
-  targetType: number;
+  targetType: number;     // 0 or 1
   targetId?: string | null;
   startDate: string;
-  endDate: string;
+  endDate?: string | null;
   isActive: boolean;
 }
+
+export type UpdateDiscountRequest = CreateDiscountRequest;
 
 // ─── Coupons ──────────────────────────────────────────────────────────────────
 
 export interface CouponResponse {
   id: string;
   code: string;
-  description: string;
-  discountType: string;
+  description: string | null;
+  discountType: string;        // "Percentage" | "FixedAmount"
   discountValue: number;
-  minimumOrderAmount: number;
-  maximumDiscountAmount: number;
+  minimumOrderAmount: number | null;
+  maximumDiscountAmount: number | null;
   usageLimit: number | null;
   usedCount: number;
   startDate: string;
-  endDate: string;
+  endDate: string | null;
   isActive: boolean;
   isValid: boolean;
   createdAt: string;
@@ -343,12 +427,27 @@ export interface CreateCouponRequest {
   description?: string;
   discountType: number;
   discountValue: number;
-  minimumOrderAmount?: number;
-  maximumDiscountAmount?: number;
+  minimumOrderAmount?: number | null;
+  maximumDiscountAmount?: number | null;
   usageLimit?: number | null;
   startDate: string;
-  endDate: string;
+  endDate?: string | null;
   isActive: boolean;
+}
+
+export type UpdateCouponRequest = CreateCouponRequest;
+
+export interface ValidateCouponRequest {
+  code: string;
+  orderTotal: number;
+  userId?: string | null;
+}
+
+export interface ValidateCouponResponse {
+  isValid: boolean;
+  message: string;
+  discountAmount: number;
+  discountType: string;
 }
 
 // ─── Governorates ─────────────────────────────────────────────────────────────
@@ -360,14 +459,39 @@ export interface GovernorateResponse {
   isActive: boolean;
 }
 
+export interface UpdateShippingCostRequest {
+  shippingCost: number;
+}
+
+// ─── Promotions ───────────────────────────────────────────────────────────────
+
+export interface CreatePromotionRequest {
+  name: string;
+  description?: string;
+  promotionType: number; // 0=Percentage, 1=Fixed, 2=BuyXGetY, 3=FreeShipping
+  value?: number;
+  priority: number;
+  isStackable: boolean;
+  allowCouponStacking: boolean;
+  buyQuantity?: number;
+  getQuantity?: number;
+  startDate: string;
+  endDate?: string | null;
+  isActive: boolean;
+}
+
+export type UpdatePromotionRequest = CreatePromotionRequest;
+
+export interface PromotionResponse extends CreatePromotionRequest {
+  id: string;
+}
+
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
 
 export interface DashboardStats {
   totalOrders: number;
   totalRevenue: number;
   totalProducts: number;
-  totalCustomers: number;
   recentOrders: OrderResponse[];
   ordersByStatus: { status: string; count: number }[];
-  revenueByMonth: { month: string; revenue: number }[];
 }

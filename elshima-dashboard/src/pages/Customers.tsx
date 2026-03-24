@@ -11,7 +11,7 @@ import { formatCurrency, formatDate } from "../lib/utils";
 import type { OrderResponse } from "../types";
 
 interface CustomerSummary {
-  email: string;
+  email: string | null;
   name: string;
   phone: string;
   governorate: string;
@@ -66,7 +66,7 @@ export default function Customers() {
     (c) =>
       !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase()) ||
+      (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
       c.phone.includes(search)
   );
 
@@ -150,19 +150,19 @@ export default function Customers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>العميل</TableHead>
-                <TableHead>الهاتف</TableHead>
-                <TableHead>المحافظة</TableHead>
-                <TableHead className="text-center">إجمالي الطلبات</TableHead>
-                <TableHead className="text-left">إجمالي الإنفاق</TableHead>
-                <TableHead>أول طلب</TableHead>
-                <TableHead>آخر طلب</TableHead>
+                <TableHead className="text-right">العميل</TableHead>
+                <TableHead className="text-right">الهاتف</TableHead>
+                <TableHead className="text-right">المحافظة</TableHead>
+                <TableHead className="text-right">إجمالي الطلبات</TableHead>
+                <TableHead className="text-right">إجمالي الإنفاق</TableHead>
+                <TableHead className="text-right">أول طلب</TableHead>
+                <TableHead className="text-right">آخر طلب</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paged.map((customer) => (
                 <TableRow key={customer.email || customer.phone}>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-semibold shrink-0">
                         {customer.name?.[0]?.toUpperCase() ?? "?"}
@@ -173,19 +173,19 @@ export default function Customers() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-right text-sm">
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-muted-foreground" />
                       {customer.phone || "—"}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{customer.governorate || "—"}</TableCell>
-                  <TableCell className="text-center font-semibold">{customer.totalOrders}</TableCell>
+                  <TableCell className="text-right text-sm text-muted-foreground">{customer.governorate || "—"}</TableCell>
+                  <TableCell className="text-right font-semibold">{customer.totalOrders}</TableCell>
                   <TableCell className="text-right font-semibold text-green-700">
                     {formatCurrency(customer.totalSpent)}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(customer.firstOrder)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(customer.lastOrder)}</TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.firstOrder)}</TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.lastOrder)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

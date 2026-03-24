@@ -24,7 +24,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         <div className="relative hidden md:block">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input placeholder="بحث..." className="pr-9 w-52 h-9 text-sm" />
+          <Input placeholder="بحث..." className="pr-10 pl-3 w-52 h-9 text-sm" />
         </div>
         <button className="relative rounded-full p-2 hover:bg-gray-100 transition-colors">
           <Bell className="h-5 w-5 text-gray-600" />

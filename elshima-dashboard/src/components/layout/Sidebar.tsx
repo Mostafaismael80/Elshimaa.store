@@ -5,12 +5,13 @@ import {
   ShoppingCart,
   Users,
   Tags,
-  Percent,
   Ticket,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Store,
+  Map,
+  Zap,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../context/AuthContext";
@@ -28,8 +29,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "التصنيفات", icon: <Tags className="h-5 w-5" />, to: "/categories" },
   { label: "الطلبات", icon: <ShoppingCart className="h-5 w-5" />, to: "/orders" },
   { label: "العملاء", icon: <Users className="h-5 w-5" />, to: "/customers" },
-  { label: "الخصومات", icon: <Percent className="h-5 w-5" />, to: "/discounts" },
+  { label: "محرك العروض", icon: <Zap className="h-5 w-5" />, to: "/promotions" },
   { label: "الكوبونات", icon: <Ticket className="h-5 w-5" />, to: "/coupons" },
+  { label: "المحافظات", icon: <Map className="h-5 w-5" />, to: "/governorates" },
 ];
 
 export function Sidebar() {

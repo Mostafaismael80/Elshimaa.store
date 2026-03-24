@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient } from './client';
 import type {
   ApiResponse,
   PaginatedResponse,
@@ -6,54 +6,49 @@ import type {
   ProductFilterParams,
   CreateProductRequest,
   UpdateProductRequest,
-  AddProductBatchRequest,
-} from "../types";
+} from '../types';
+
+type ProductListResponse = ApiResponse<PaginatedResponse<ProductResponse>>;
+type ProductDetailResponse = ApiResponse<ProductResponse>;
 
 export const productsApi = {
-  getAll: async (params?: ProductFilterParams): Promise<ApiResponse<PaginatedResponse<ProductResponse>>> => {
-    const res = await apiClient.get<ApiResponse<PaginatedResponse<ProductResponse>>>("/products", { params });
-    return res.data;
+  /** GET /api/products — paginated listing */
+  getAll(params?: ProductFilterParams): Promise<ProductListResponse> {
+    return apiClient.get('/products', { params }).then((r) => r.data);
   },
 
-  getById: async (id: string): Promise<ApiResponse<ProductResponse>> => {
-    const res = await apiClient.get<ApiResponse<ProductResponse>>(`/products/${id}`);
-    return res.data;
+  /** GET /api/products/{id} — full detail with colors, images, variants */
+  getById(id: string): Promise<ProductDetailResponse> {
+    return apiClient.get(`/products/${id}`).then((r) => r.data);
   },
 
-  create: async (data: CreateProductRequest): Promise<ApiResponse<ProductResponse>> => {
-    const res = await apiClient.post<ApiResponse<ProductResponse>>("/products", data);
-    return res.data;
+  /** GET /api/products/slug/{slug} */
+  getBySlug(slug: string): Promise<ProductDetailResponse> {
+    return apiClient.get(`/products/slug/${slug}`).then((r) => r.data);
   },
 
-  /** Add one or more products using slug/name-based body (categorySlug, sizeType, colorName, sizeName) */
-  createBatch: async (data: AddProductBatchRequest): Promise<ApiResponse<ProductResponse[]>> => {
-    const res = await apiClient.post<ApiResponse<ProductResponse[]>>("/products/batch", data);
-    return res.data;
+  /** GET /api/products/featured?count=N */
+  getFeatured(count = 10): Promise<ApiResponse<ProductResponse[]>> {
+    return apiClient.get('/products/featured', { params: { count } }).then((r) => r.data);
   },
 
-  createWithImage: async (formData: FormData): Promise<ApiResponse<ProductResponse>> => {
-    const res = await apiClient.post<ApiResponse<ProductResponse>>("/products/with-image", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return res.data;
+  /** GET /api/products/{id}/related?count=N */
+  getRelated(id: string, count = 4): Promise<ApiResponse<ProductResponse[]>> {
+    return apiClient.get(`/products/${id}/related`, { params: { count } }).then((r) => r.data);
   },
 
-  update: async (id: string, data: UpdateProductRequest): Promise<ApiResponse<ProductResponse>> => {
-    const res = await apiClient.put<ApiResponse<ProductResponse>>(`/products/${id}`, data);
-    return res.data;
+  /** POST /api/products — create with JSON body */
+  create(data: CreateProductRequest): Promise<ProductDetailResponse> {
+    return apiClient.post('/products', data).then((r) => r.data);
   },
 
-  delete: async (id: string): Promise<ApiResponse<null>> => {
-    const res = await apiClient.delete<ApiResponse<null>>(`/products/${id}`);
-    return res.data;
+  /** PUT /api/products/{id} — update */
+  update(id: string, data: UpdateProductRequest): Promise<ProductDetailResponse> {
+    return apiClient.put(`/products/${id}`, data).then((r) => r.data);
   },
 
-  uploadImage: async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await apiClient.post<ApiResponse<{ url: string }>>("/images/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return res.data.data.url;
+  /** DELETE /api/products/{id} — soft delete */
+  delete(id: string): Promise<ApiResponse<null>> {
+    return apiClient.delete(`/products/${id}`).then((r) => r.data);
   },
 };

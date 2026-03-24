@@ -1,101 +1,143 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Search, Eye, ChevronDown, ShoppingCart } from "lucide-react";
+import {
+  Search, ShoppingBag, Eye, CheckCircle, XCircle, Truck, Package,
+  Clock, ChevronLeft, ChevronRight, Filter,
+} from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent } from "../components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/table";
-import { formatCurrency, formatDate, ORDER_STATUS_COLORS, PAYMENT_STATUS_COLORS } from "../lib/utils";
-import type { OrderResponse } from "../types";
+import { formatCurrency } from "../lib/utils";
+import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "../types";
+import type { OrderResponse, UpdateOrderStatusRequest } from "../types";
 
-const ORDER_STATUSES = [
-  { label: "قيد الانتظار", value: "0" },
-  { label: "مؤكد", value: "1" },
-  { label: "قيد المعالجة", value: "2" },
-  { label: "مُشحون", value: "3" },
-  { label: "مُسلَّم", value: "4" },
-  { label: "ملغي", value: "5" },
+// ─── Status Config ─────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  Pending:   { label: "قيد الانتظار", color: "bg-yellow-100 text-yellow-800", icon: <Clock className="h-3 w-3" /> },
+  Confirmed: { label: "مؤكد",        color: "bg-blue-100 text-blue-800",   icon: <CheckCircle className="h-3 w-3" /> },
+  Shipped:   { label: "تم الشحن",    color: "bg-purple-100 text-purple-800", icon: <Truck className="h-3 w-3" /> },
+  Delivered: { label: "تم التسليم", color: "bg-green-100 text-green-800",  icon: <Package className="h-3 w-3" /> },
+  Cancelled: { label: "ملغي",        color: "bg-red-100 text-red-800",      icon: <XCircle className="h-3 w-3" /> },
+};
+
+function OrderStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? { label: status, color: "bg-gray-100 text-gray-800", icon: null };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+// ─── Status transition options ─────────────────────────────────────────────────
+
+const NEXT_STATUS_OPTIONS = [
+  { value: ORDER_STATUS.Confirmed, label: "تأكيد الطلب" },
+  { value: ORDER_STATUS.Shipped,   label: "شحن الطلب" },
+  { value: ORDER_STATUS.Delivered, label: "تسليم الطلب" },
+  { value: ORDER_STATUS.Cancelled, label: "إلغاء الطلب" },
 ];
-
-const statusSchema = z.object({
-  newStatus: z.string(),
-  notes: z.string().optional(),
-  trackingNumber: z.string().optional(),
-});
-type StatusForm = z.infer<typeof statusSchema>;
 
 export default function Orders() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   const [detailOrder, setDetailOrder] = useState<OrderResponse | null>(null);
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(null);
+  const [statusDialogOrder, setStatusDialogOrder] = useState<OrderResponse | null>(null);
+  const [newStatus, setNewStatus] = useState<string>("");
+  const [statusNotes, setStatusNotes] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+
+  // ─── Queries ──────────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
-    queryKey: ["orders", page, search, filterStatus],
+    queryKey: ["orders", page, search, statusFilter],
     queryFn: () =>
       ordersApi.getAll({
         pageNumber: page,
         pageSize: 15,
         search: search || undefined,
-        orderStatus: filterStatus !== "all" ? filterStatus : undefined,
+        orderStatus: statusFilter !== "all" ? Number(statusFilter) : undefined,
+        sortBy: "createdAt",
+        sortDescending: true,
       }),
   });
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { isSubmitting } } = useForm<StatusForm>({
-    resolver: zodResolver(statusSchema),
-    defaultValues: { newStatus: "1" },
-  });
+  // ─── Mutations ────────────────────────────────────────────────────────────────
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      ordersApi.updateStatus(id, { ...data, newStatus: parseInt(data.newStatus) }),
-    onSuccess: () => {
+    mutationFn: ({ id, body }: { id: string; body: UpdateOrderStatusRequest }) =>
+      ordersApi.updateStatus(id, body),
+    onSuccess: (res) => {
       toast("تم تحديث حالة الطلب", "success");
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      setStatusDialogOpen(false);
+      setStatusDialogOrder(null);
+      // Also refresh detail if open
+      if (detailOrder?.id === res.data.id) setDetailOrder(res.data);
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل تحديث الحالة", "error"),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => ordersApi.cancel(id),
+    onSuccess: () => {
+      toast("تم إلغاء الطلب", "success");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setDetailOrder(null);
+    },
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الإلغاء", "error"),
+  });
+
+  // ─── Status dialog ────────────────────────────────────────────────────────────
+
   const openStatusDialog = (order: OrderResponse) => {
-    setSelectedOrder(order);
-    reset({ newStatus: "1", notes: "", trackingNumber: "" });
-    setStatusDialogOpen(true);
+    setStatusDialogOrder(order);
+    setNewStatus("");
+    setStatusNotes("");
+    setTrackingNumber("");
   };
+
+  const submitStatusUpdate = () => {
+    if (!statusDialogOrder || !newStatus) return;
+    updateStatusMutation.mutate({
+      id: statusDialogOrder.id,
+      body: {
+        newStatus: Number(newStatus),
+        notes: statusNotes || undefined,
+        trackingNumber: trackingNumber || undefined,
+      },
+    });
+  };
+
+  const canCancel = (order: OrderResponse) =>
+    order.orderStatus !== "Shipped" && order.orderStatus !== "Delivered" && order.orderStatus !== "Cancelled";
 
   const orders = data?.data?.items ?? [];
   const pagination = data?.data;
 
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">الطلبات</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            {pagination?.totalCount ?? 0} طلب إجمالاً
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">{pagination?.totalCount ?? 0} طلب إجمالاً</p>
         </div>
       </div>
 
@@ -104,218 +146,243 @@ export default function Orders() {
         <div className="relative flex-1 min-w-48">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="البحث برقم الطلب أو العميل..."
+            placeholder="البحث برقم الطلب أو الاسم..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pr-9"
           />
         </div>
-        <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="جميع الحالات" />
+            <SelectValue placeholder="الحالة" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">جميع الحالات</SelectItem>
-            {ORDER_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.label}>{s.label}</SelectItem>
-            ))}
+            <SelectItem value="0">قيد الانتظار</SelectItem>
+            <SelectItem value="1">مؤكد</SelectItem>
+            <SelectItem value="2">تم الشحن</SelectItem>
+            <SelectItem value="3">تم التسليم</SelectItem>
+            <SelectItem value="4">ملغي</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Filter className="h-4 w-4" /> {pagination?.totalCount ?? 0} نتيجة
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Orders Table */}
       {isLoading ? (
         <LoadingPage />
       ) : orders.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p>لا توجد طلبات</p>
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>رقم الطلب</TableHead>
-                <TableHead>العميل</TableHead>
-                <TableHead>العناصر</TableHead>
-                <TableHead>الإجمالي</TableHead>
-                <TableHead>الدفع</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>التاريخ</TableHead>
-                <TableHead className="text-left">الإجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-mono text-xs text-blue-600">{order.orderNumber}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-sm">{order.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">{order.items?.length ?? 0}</TableCell>
-                  <TableCell className="font-semibold">{formatCurrency(order.totalAmount)}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${PAYMENT_STATUS_COLORS[order.paymentStatus] ?? "bg-gray-100 text-gray-800"}`}>
-                      {order.paymentStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ORDER_STATUS_COLORS[order.orderStatus] ?? "bg-gray-100 text-gray-800"}`}>
-                      {order.orderStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-start gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setDetailOrder(order)}>
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => openStatusDialog(order)}
-                        disabled={order.orderStatus === "Cancelled" || order.orderStatus === "Delivered"}>
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">رقم الطلب</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">العميل</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">المبلغ</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">حالة الطلب</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">الدفع</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">التاريخ</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-right font-mono text-xs">{order.orderNumber}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div>
+                        <div className="font-medium">{order.customerName}</div>
+                        <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-700">{formatCurrency(order.totalAmount)}</td>
+                    <td className="px-4 py-3 text-right"><OrderStatusBadge status={order.orderStatus} /></td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-xs text-gray-600">
+                        {PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                      {new Date(order.createdAt).toLocaleDateString("ar-EG")}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                          onClick={() => setDetailOrder(order)}>
+                          <Eye className="h-3 w-3" /> عرض
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                          onClick={() => openStatusDialog(order)}>
+                          تحديث
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={!pagination.hasPreviousPage} onClick={() => setPage((p) => p - 1)}>السابق</Button>
+          <Button variant="outline" size="sm" disabled={!pagination.hasPreviousPage} onClick={() => setPage((p) => p - 1)}>
+            <ChevronRight className="h-4 w-4" /> السابق
+          </Button>
           <span className="text-sm text-muted-foreground">صفحة {pagination.pageNumber} من {pagination.totalPages}</span>
-          <Button variant="outline" size="sm" disabled={!pagination.hasNextPage} onClick={() => setPage((p) => p + 1)}>التالي</Button>
+          <Button variant="outline" size="sm" disabled={!pagination.hasNextPage} onClick={() => setPage((p) => p + 1)}>
+            التالي <ChevronLeft className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
       {/* Order Detail Dialog */}
-      <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={!!detailOrder} onOpenChange={(o) => !o && setDetailOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تفاصيل الطلب — {detailOrder?.orderNumber}</DialogTitle>
-            <DialogDescription>تم الطلب في {formatDate(detailOrder?.createdAt)}</DialogDescription>
           </DialogHeader>
           {detailOrder && (
-            <div className="space-y-4">
-              {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">العميل</p>
-                  <p className="font-medium">{detailOrder.customerName}</p>
-                  <p>{detailOrder.customerEmail}</p>
-                  <p>{detailOrder.customerPhone}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">عنوان الشحن</p>
-                  <p className="font-medium">{detailOrder.governorateName}</p>
-                  <p>{detailOrder.city}</p>
-                  <p>{detailOrder.detailedAddress}</p>
-                </div>
+            <div className="space-y-4 text-sm">
+              {/* Status + dates */}
+              <div className="flex flex-wrap gap-3 items-center">
+                <OrderStatusBadge status={detailOrder.orderStatus} />
+                <span className="text-xs text-muted-foreground">
+                  {new Date(detailOrder.createdAt).toLocaleString("ar-EG")}
+                </span>
+              </div>
+
+              {/* Customer */}
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
+                <div><span className="text-muted-foreground">الاسم: </span>{detailOrder.customerName}</div>
+                <div><span className="text-muted-foreground">الهاتف: </span>{detailOrder.customerPhone}</div>
+                {detailOrder.customerEmail && <div><span className="text-muted-foreground">البريد: </span>{detailOrder.customerEmail}</div>}
+                <div><span className="text-muted-foreground">المحافظة: </span>{detailOrder.governorateName}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">العنوان: </span>{detailOrder.city} — {detailOrder.detailedAddress}</div>
               </div>
 
               {/* Items */}
-              <div>
-                <p className="text-sm font-semibold mb-2">أصناف الطلب</p>
-                <div className="space-y-2">
-                  {detailOrder.items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-                      {item.productImageUrl && (
-                        <img src={`https://localhost:7210${item.productImageUrl}`} alt={item.productName}
-                          className="h-10 w-10 rounded-md object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                      )}
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.productName}</p>
-                        <p className="text-xs text-muted-foreground">{item.colorName} / {item.sizeName}</p>
-                      </div>
-                      <div className="text-right text-sm">
-                        <p className="font-medium">{formatCurrency(item.totalPrice)}</p>
-                        <p className="text-xs text-muted-foreground">x{item.quantity} @ {formatCurrency(item.unitPrice)}</p>
-                      </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold">المنتجات</h4>
+                {detailOrder.items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 border rounded p-2">
+                    {item.productImageUrl && (
+                      <img src={item.productImageUrl} alt={item.productName}
+                        className="h-12 w-12 rounded object-cover flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{item.productName}</div>
+                      <div className="text-xs text-muted-foreground">{item.colorName} / {item.sizeName} × {item.quantity}</div>
                     </div>
-                  ))}
+                    <div className="font-semibold text-blue-700">{formatCurrency(item.totalPrice)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div className="rounded-lg bg-gray-50 p-3 space-y-1 text-sm">
+                <div className="flex justify-between"><span>المجموع الفرعي</span><span>{formatCurrency(detailOrder.subTotal)}</span></div>
+                <div className="flex justify-between"><span>الشحن</span><span>{formatCurrency(detailOrder.shippingCost)}</span></div>
+                {detailOrder.couponDiscountAmount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>خصم الكوبون ({detailOrder.couponCode})</span>
+                    <span>- {formatCurrency(detailOrder.couponDiscountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t pt-1 mt-1">
+                  <span>الإجمالي</span><span>{formatCurrency(detailOrder.totalAmount)}</span>
                 </div>
               </div>
 
-              {/* Order Summary */}
-              <div className="border-t pt-3 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">المجموع الفرعي</span><span>{formatCurrency(detailOrder.subTotal)}</span></div>
-                {detailOrder.discountAmount > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span>-{formatCurrency(detailOrder.discountAmount)}</span></div>}
-                {detailOrder.couponDiscountAmount > 0 && <div className="flex justify-between text-green-600"><span>كوبون ({detailOrder.couponCode})</span><span>-{formatCurrency(detailOrder.couponDiscountAmount)}</span></div>}
-                <div className="flex justify-between"><span className="text-muted-foreground">الشحن</span><span>{formatCurrency(detailOrder.shippingCost)}</span></div>
-                <div className="flex justify-between font-bold text-base border-t pt-1 mt-1"><span>الإجمالي</span><span>{formatCurrency(detailOrder.totalAmount)}</span></div>
-              </div>
+              {/* Tracking */}
+              {detailOrder.trackingNumber && (
+                <div className="text-sm">
+                  <span className="font-medium">رقم التتبع: </span>
+                  <span className="font-mono">{detailOrder.trackingNumber}</span>
+                </div>
+              )}
 
               {/* Status History */}
-              {detailOrder.statusHistory?.length > 0 && (
-                <div>
-                  <p className="text-sm font-semibold mb-2">سجل الحالة</p>
-                  <div className="space-y-2">
-                    {detailOrder.statusHistory.map((h) => (
-                      <div key={h.id} className="flex items-start gap-3 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
-                        <div>
-                          <p><span className="text-muted-foreground">{h.oldStatus}</span> → <span className="font-medium">{h.newStatus}</span></p>
-                          {h.notes && <p className="text-xs text-muted-foreground">{h.notes}</p>}
-                          <p className="text-xs text-muted-foreground">{formatDate(h.createdAt)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {detailOrder.statusHistory && detailOrder.statusHistory.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="font-semibold">سجل الحالة</h4>
+                  {detailOrder.statusHistory.map((h) => (
+                    <div key={h.id} className="text-xs text-muted-foreground flex gap-2">
+                      <span>{ORDER_STATUS_LABELS[h.oldStatus] ?? h.oldStatus}</span>
+                      <span>→</span>
+                      <span className="text-gray-700">{ORDER_STATUS_LABELS[h.newStatus] ?? h.newStatus}</span>
+                      {h.notes && <span>| {h.notes}</span>}
+                      <span className="mr-auto">{new Date(h.createdAt).toLocaleString("ar-EG")}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           )}
+          <DialogFooter className="gap-2">
+            {detailOrder && canCancel(detailOrder) && (
+              <Button variant="destructive" size="sm"
+                onClick={() => cancelMutation.mutate(detailOrder.id)}
+                disabled={cancelMutation.isPending}
+                className="gap-2">
+                {cancelMutation.isPending && <Spinner className="h-4 w-4" />}
+                إلغاء الطلب
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setDetailOrder(null)}>إغلاق</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Update Status Dialog */}
-      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
+      <Dialog open={!!statusDialogOrder} onOpenChange={(o) => !o && setStatusDialogOrder(null)}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>تحديث حالة الطلب</DialogTitle>
-            <DialogDescription>الطلب: {selectedOrder?.orderNumber}</DialogDescription>
+            <DialogDescription>{statusDialogOrder?.orderNumber}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit((values) => selectedOrder && updateStatusMutation.mutateAsync({ id: selectedOrder.id, data: values }))} className="space-y-4">
+          <div className="space-y-3">
             <div className="space-y-2">
               <Label>الحالة الجديدة</Label>
-              <Select value={watch("newStatus")} onValueChange={(v) => setValue("newStatus", v)}>
+              <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="اختر الحالة" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ORDER_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  {NEXT_STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>رقم التتبع (اختياري)</Label>
-              <Input {...register("trackingNumber")} placeholder="TRK-12345" />
+              <Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="رقم الشحنة" />
             </div>
             <div className="space-y-2">
               <Label>ملاحظات (اختياري)</Label>
-              <Textarea {...register("notes")} rows={2} />
+              <Textarea value={statusNotes} onChange={(e) => setStatusNotes(e.target.value)} rows={2} placeholder="ملاحظات إضافية" />
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setStatusDialogOpen(false)}>إلغاء</Button>
-              <Button type="submit" disabled={isSubmitting || updateStatusMutation.isPending}>
-                {(isSubmitting || updateStatusMutation.isPending) ? <Spinner size="sm" className="ml-2" /> : null}
-                تحديث الحالة
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOrder(null)}>إلغاء</Button>
+            <Button onClick={submitStatusUpdate} disabled={!newStatus || updateStatusMutation.isPending} className="gap-2">
+              {updateStatusMutation.isPending && <Spinner className="h-4 w-4" />}
+              تحديث
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

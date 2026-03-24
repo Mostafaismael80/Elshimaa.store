@@ -42,12 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!res.success) throw new Error(res.message || "Login failed");
     setToken(res.data.token);
     setUser(res.data.user);
+    localStorage.setItem("refreshToken", res.data.refreshToken);
   }, []);
 
   const logout = useCallback(async () => {
     try { await authApi.logout(); } catch { /* ignore */ }
     setToken(null);
     setUser(null);
+    localStorage.removeItem("refreshToken");
   }, []);
 
   return (
