@@ -8,7 +8,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://elshimaa-1.runasp.net',
+        target: 'https://elshimaa-1.runasp.net',
         changeOrigin: true,
         secure: false,
       },
