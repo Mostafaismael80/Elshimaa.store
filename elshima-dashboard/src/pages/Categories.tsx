@@ -168,7 +168,7 @@ export default function Categories() {
           if (values.discountStartDate) fd.append("discountStartDate", values.discountStartDate);
           if (values.discountEndDate) fd.append("discountEndDate", values.discountEndDate);
         }
-
+//
         await createMutation.mutateAsync(fd);
       }
     } catch (error: any) {
