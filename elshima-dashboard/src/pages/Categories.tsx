@@ -181,7 +181,7 @@ export default function Categories() {
   const rootCategories = categories;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

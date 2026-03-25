@@ -66,7 +66,7 @@ function getStatusBadgeClass(status: string) {
 export default function Dashboard() {
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
     queryKey: ["orders", "dashboard"],
-    queryFn: () => ordersApi.getAll({ pageNumber: 1, pageSize: 100 }),
+    queryFn: () => ordersApi.getAll({ pageNumber: 1, pageSize: 50 }),
   });
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
@@ -122,7 +122,11 @@ export default function Dashboard() {
   const recentOrders = orders.slice(0, 8);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
+      {/* Approximate data notice */}
+      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        ⚠️ قيم تقريبية بناءً على الطلبات المحمّلة فقط — لا تمثل إحصائيات تجارية كاملة
+      </p>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
@@ -130,7 +134,7 @@ export default function Dashboard() {
           value={formatCurrency(totalRevenue)}
           icon={<TrendingUp className="h-6 w-6 text-green-600" />}
           color="bg-green-100"
-          sub="من الطلبات النشطة"
+          sub="تقريبي — من الطلبات المحمّلة"
         />
         <KpiCard
           title="إجمالي الطلبات"

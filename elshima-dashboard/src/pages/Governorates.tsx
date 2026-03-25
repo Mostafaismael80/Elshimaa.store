@@ -78,16 +78,16 @@ export default function Governorates() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16 text-right">ID</TableHead>
+                <TableHead className="w-12 text-right">#</TableHead>
                 <TableHead className="text-right">الاسم</TableHead>
                 <TableHead className="text-right">تكلفة الشحن</TableHead>
                 <TableHead className="text-right">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {governorates.map((gov) => (
+              {governorates.map((gov, index) => (
                 <TableRow key={gov.id}>
-                  <TableCell className="text-right font-mono text-xs">{gov.id}</TableCell>
+                  <TableCell className="text-right text-sm text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-blue-500" />

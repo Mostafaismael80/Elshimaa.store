@@ -9,6 +9,9 @@ import Customers from "./pages/Customers";
 import Coupons from "./pages/Coupons";
 import Governorates from "./pages/Governorates";
 import Promotions from "./pages/Promotions";
+import Discounts from "./pages/Discounts";
+import Announcements from "./pages/Announcements";
+import Reviews from "./pages/Reviews";
 import { useAuth } from "./context/AuthContext";
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -29,7 +32,10 @@ function App() {
           <Route path="/orders" element={<Orders />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/promotions" element={<Promotions />} />
+          <Route path="/discounts" element={<Discounts />} />
           <Route path="/coupons" element={<Coupons />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/reviews" element={<Reviews />} />
           <Route path="/governorates" element={<Governorates />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -39,3 +45,4 @@ function App() {
 }
 
 export default App;
+

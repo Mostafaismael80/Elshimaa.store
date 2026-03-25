@@ -19,24 +19,36 @@ import { useToast } from "../components/ui/toast";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/table";
 import { formatCurrency } from "../lib/utils";
 import type { PromotionResponse } from "../types";
+import { PROMOTION_TYPE_LABELS, PROMOTION_SCOPE_LABELS } from "../types";
 
-const PROMOTION_TYPES = [
+// ─── Form Options (use integers for backend, Arabic labels for UI) ──────────
+
+const TYPE_OPTIONS = [
   { label: "نسبة مئوية", value: "0" },
   { label: "مبلغ ثابت", value: "1" },
   { label: "اشتري X واحصل على Y", value: "2" },
   { label: "شحن مجاني", value: "3" },
 ];
 
+const SCOPE_OPTIONS = [
+  { label: "منتج", value: "0" },
+  { label: "فئة", value: "1" },
+  { label: "السلة", value: "2" },
+];
+
 const schema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
-  description: z.string().optional(),
-  promotionType: z.string(),
+  type: z.string(),
+  scope: z.string(),
   value: z.coerce.number().optional(),
   priority: z.coerce.number().default(0),
   isStackable: z.boolean().default(true),
   allowCouponStacking: z.boolean().default(true),
+  productId: z.string().optional(),
+  categoryId: z.string().optional(),
   buyQuantity: z.coerce.number().optional(),
   getQuantity: z.coerce.number().optional(),
+  getProductId: z.string().optional(),
   startDate: z.string().min(1, "تاريخ البداية مطلوب"),
   endDate: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
@@ -58,50 +70,89 @@ export default function Promotions() {
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { promotionType: "0", priority: 0, isStackable: true, allowCouponStacking: true, isActive: true },
+    defaultValues: { type: "0", scope: "2", priority: 0, isStackable: true, allowCouponStacking: true, isActive: true },
   });
 
-  const ptValue = watch("promotionType");
-  const isBuyXGetY = ptValue === "2";
-  const isFreeShipping = ptValue === "3";
+  const typeVal = watch("type");
+  const scopeVal = watch("scope");
+  const isBuyXGetY = typeVal === "2";
+  const isFreeShipping = typeVal === "3";
+  const isProductScope = scopeVal === "0";
+  const isCategoryScope = scopeVal === "1";
+
+  // ─── Mutations ────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => promotionsApi.create({ ...data, promotionType: parseInt(data.promotionType) }),
-    onSuccess: () => { toast("تم إنشاء العرض بنجاح", "success"); queryClient.invalidateQueries({ queryKey: ["promotions"] }); setDialogOpen(false); },
+    mutationFn: (data: any) => promotionsApi.create({
+      ...data,
+      type: parseInt(data.type),
+      scope: parseInt(data.scope),
+    }),
+    onSuccess: () => {
+      toast("تم إنشاء العرض بنجاح", "success");
+      queryClient.invalidateQueries({ queryKey: ["promotions"] });
+      setDialogOpen(false);
+    },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل إنشاء العرض", "error"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
-      promotionsApi.update(id, { ...data, promotionType: parseInt(data.promotionType) }),
-    onSuccess: () => { toast("تم تحديث العرض بنجاح", "success"); queryClient.invalidateQueries({ queryKey: ["promotions"] }); setDialogOpen(false); },
+      promotionsApi.update(id, {
+        ...data,
+        type: parseInt(data.type),
+        scope: parseInt(data.scope),
+      }),
+    onSuccess: () => {
+      toast("تم تحديث العرض بنجاح", "success");
+      queryClient.invalidateQueries({ queryKey: ["promotions"] });
+      setDialogOpen(false);
+    },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل التحديث", "error"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => promotionsApi.delete(id),
-    onSuccess: () => { toast("تم حذف العرض بنجاح", "success"); queryClient.invalidateQueries({ queryKey: ["promotions"] }); setDeleteDialogOpen(false); },
+    onSuccess: () => {
+      toast("تم حذف العرض بنجاح", "success");
+      queryClient.invalidateQueries({ queryKey: ["promotions"] });
+      setDeleteDialogOpen(false);
+    },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الحذف", "error"),
   });
 
+  // ─── Dialog openers ───────────────────────────────────────────────────────
+
   const openCreate = () => {
     setSelected(null);
-    reset({ name: "", description: "", promotionType: "0", value: 0, priority: 0, isStackable: true, allowCouponStacking: true, buyQuantity: 0, getQuantity: 0, startDate: "", endDate: "", isActive: true });
+    reset({
+      name: "", type: "0", scope: "2", value: 0, priority: 0,
+      isStackable: true, allowCouponStacking: true, isActive: true,
+      productId: "", categoryId: "", buyQuantity: 0, getQuantity: 0,
+      getProductId: "", startDate: "", endDate: "",
+    });
     setDialogOpen(true);
   };
+
+  // Map backend string → form integer string
+  const typeToInt: Record<string, string> = { Percentage: "0", Fixed: "1", BuyXGetY: "2", FreeShipping: "3" };
+  const scopeToInt: Record<string, string> = { Product: "0", Category: "1", Cart: "2" };
 
   const openEdit = (p: PromotionResponse) => {
     setSelected(p);
     reset({
       name: p.name,
-      description: p.description ?? "",
-      promotionType: p.promotionType.toString(),
+      type: typeToInt[p.type] ?? "0",
+      scope: scopeToInt[p.scope] ?? "2",
       value: p.value ?? 0,
       priority: p.priority,
       isStackable: p.isStackable,
       allowCouponStacking: p.allowCouponStacking,
+      productId: p.productId ?? "",
+      categoryId: p.categoryId ?? "",
       buyQuantity: p.buyQuantity ?? 0,
       getQuantity: p.getQuantity ?? 0,
+      getProductId: p.getProductId ?? "",
       startDate: p.startDate?.slice(0, 16),
       endDate: p.endDate ? p.endDate.slice(0, 16) : "",
       isActive: p.isActive,
@@ -112,8 +163,10 @@ export default function Promotions() {
   const onSubmit = async (values: FormValues) => {
     const payload = { ...values };
     if (isFreeShipping) { payload.value = 0; payload.buyQuantity = 0; payload.getQuantity = 0; }
-    if (!isBuyXGetY) { payload.buyQuantity = 0; payload.getQuantity = 0; }
-    
+    if (!isBuyXGetY) { payload.buyQuantity = 0; payload.getQuantity = 0; payload.getProductId = ""; }
+    if (!isProductScope) payload.productId = "";
+    if (!isCategoryScope) payload.categoryId = "";
+
     if (selected) {
       await updateMutation.mutateAsync({ id: selected.id, data: payload });
     } else {
@@ -128,7 +181,6 @@ export default function Promotions() {
     const now = new Date();
     const start = new Date(p.startDate);
     const end = p.endDate ? new Date(p.endDate) : null;
-
     if (now < start) return "مجدول";
     if (end && now > end) return "منتهي";
     return "نشط";
@@ -140,19 +192,19 @@ export default function Promotions() {
   });
 
   const formatPromotionValue = (p: PromotionResponse) => {
-    switch (p.promotionType) {
-      case 0: return `${p.value}%`;
-      case 1: return formatCurrency(p.value ?? 0);
-      case 2: return `اشتري ${p.buyQuantity} وخد ${p.getQuantity}`;
-      case 3: return "مجاناً";
+    switch (p.type) {
+      case "Percentage": return `${p.value}%`;
+      case "Fixed": return formatCurrency(p.value ?? 0);
+      case "BuyXGetY": return `اشتري ${p.buyQuantity} وخد ${p.getQuantity}`;
+      case "FreeShipping": return "مجاناً";
       default: return "—";
     }
   };
 
-  const ptTranslate: Record<number, string> = { 0: "نسبة", 1: "مبلغ", 2: "BOGO", 3: "شحن مجاني" };
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -182,8 +234,9 @@ export default function Promotions() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right w-1/4">الاسم</TableHead>
+                <TableHead className="text-right w-1/5">الاسم</TableHead>
                 <TableHead className="text-right">النوع</TableHead>
+                <TableHead className="text-right">النطاق</TableHead>
                 <TableHead className="text-right">القيمة</TableHead>
                 <TableHead className="text-right">الأولوية</TableHead>
                 <TableHead className="text-right">تتراكم؟</TableHead>
@@ -205,9 +258,13 @@ export default function Promotions() {
                   <TableRow key={p.id}>
                     <TableCell className="text-right font-medium min-w-[200px] whitespace-normal leading-relaxed">
                       {p.name}
-                      {p.description && <p className="text-xs text-muted-foreground">{p.description}</p>}
                     </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">{ptTranslate[p.promotionType]}</TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {PROMOTION_TYPE_LABELS[p.type] ?? p.type}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {PROMOTION_SCOPE_LABELS[p.scope] ?? p.scope}
+                    </TableCell>
                     <TableCell className="text-right font-semibold text-blue-600 whitespace-nowrap">
                       {formatPromotionValue(p)}
                     </TableCell>
@@ -249,33 +306,37 @@ export default function Promotions() {
             <DialogDescription>هذا العرض سيُطبق أوتوماتيكياً في سلة مشتريات العميل.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label>اسم العرض (يظهر للعميل كرسالة توفير)</Label>
-                <Input {...register("name")} placeholder="مثال: خصم الصيف 10%" />
-                {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>وصف داخلي (اختياري)</Label>
-                <Input {...register("description")} placeholder="ملاحظات للإدارة" />
-              </div>
+            <div className="space-y-2">
+              <Label>اسم العرض (يظهر للعميل كرسالة توفير)</Label>
+              <Input {...register("name")} placeholder="مثال: خصم الصيف 10%" />
+              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4 border p-3 bg-gray-50/50 rounded-lg">
               <div className="space-y-2">
                 <Label>نوع العرض</Label>
-                <Select value={watch("promotionType")} onValueChange={(v) => setValue("promotionType", v)}>
+                <Select value={watch("type")} onValueChange={(v) => setValue("type", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PROMOTION_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    {TYPE_OPTIONS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>نطاق التطبيق</Label>
+                <Select value={watch("scope")} onValueChange={(v) => setValue("scope", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SCOPE_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
 
               {!isFreeShipping && !isBuyXGetY && (
                 <div className="space-y-2">
-                  <Label>القيمة {watch("promotionType") === "0" ? "(%)" : "(ج.م)"}</Label>
-                  <Input type="number" step="0.01" {...register("value")} disabled={isFreeShipping} />
+                  <Label>القيمة {watch("type") === "0" ? "(%)" : "(ج.م)"}</Label>
+                  <Input type="number" step="0.01" {...register("value")} />
                 </div>
               )}
 
@@ -289,9 +350,28 @@ export default function Promotions() {
                     <Label>احصل على (كمية مجانية)</Label>
                     <Input type="number" min="1" {...register("getQuantity")} />
                   </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label>معرّف منتج الهدية (اختياري)</Label>
+                    <Input {...register("getProductId")} placeholder="UUID المنتج المجاني" className="font-mono text-xs" />
+                  </div>
                 </>
               )}
             </div>
+
+            {/* Scope-conditional fields */}
+            {isProductScope && (
+              <div className="space-y-2">
+                <Label>معرّف المنتج (UUID)</Label>
+                <Input {...register("productId")} placeholder="UUID المنتج" className="font-mono text-xs" />
+              </div>
+            )}
+
+            {isCategoryScope && (
+              <div className="space-y-2">
+                <Label>معرّف الفئة (UUID)</Label>
+                <Input {...register("categoryId")} placeholder="UUID الفئة" className="font-mono text-xs" />
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-4 border p-3 rounded-lg">
               <div className="space-y-2">

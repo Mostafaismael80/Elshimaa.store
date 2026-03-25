@@ -88,6 +88,9 @@ const productSchema = z.object({
   sizeTypeId: z.string().default(""),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
+  includes: z.string().optional(),
+  length: z.string().optional(),
+  material: z.string().optional(),
   isDiscountActive: z.boolean().default(false),
   discountType: z.coerce.number().optional(),
   discountValue: z.coerce.number().optional(),
@@ -282,7 +285,7 @@ export default function Products() {
 
   const openCreate = () => {
     setSelectedProduct(null);
-    reset({ nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: 0, discountStartDate: "", discountEndDate: "" });
+    reset({ nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, includes: "", length: "", material: "", isDiscountActive: false, discountType: 0, discountValue: 0, discountStartDate: "", discountEndDate: "" });
     setColors([defaultColorEntry()]);
     setDisplayImages(defaultDisplayImages());
     setUseDisplayImages(false);
@@ -299,6 +302,9 @@ export default function Products() {
       sizeTypeId: "",
       isActive: product.isActive,
       isFeatured: product.isFeatured,
+      includes: (product as any).includes ?? "",
+      length: (product as any).length ?? "",
+      material: (product as any).material ?? "",
       isDiscountActive: false,
       discountType: 0,
       discountValue: 0,
@@ -414,6 +420,9 @@ export default function Products() {
           categoryId: values.categoryId,
           isActive: values.isActive,
           isFeatured: values.isFeatured,
+          includes: values.includes || null,
+          length: values.length || null,
+          material: values.material || null,
           colors: resolvedColors,
           displayImages: useDisplayImages ? resolvedDisplayImages : null,
           isDiscountActive: values.isDiscountActive,
@@ -436,6 +445,9 @@ export default function Products() {
         sizeTypeId: values.sizeTypeId,
         isActive: values.isActive,
         isFeatured: values.isFeatured,
+        includes: values.includes || null,
+        length: values.length || null,
+        material: values.material || null,
         colors: resolvedColors,
         displayImages: useDisplayImages ? resolvedDisplayImages : null,
         isDiscountActive: values.isDiscountActive,
@@ -642,6 +654,20 @@ export default function Products() {
               <div className="space-y-2 md:col-span-2">
                 <Label>الوصف (بالعربية)</Label>
                 <Textarea {...register("descriptionAr")} placeholder="وصف المنتج" rows={3} />
+              </div>
+
+              {/* Optional Product Details */}
+              <div className="space-y-2">
+                <Label>المحتويات (includes)</Label>
+                <Input {...register("includes")} placeholder="ما يتضمنه المنتج" maxLength={500} />
+              </div>
+              <div className="space-y-2">
+                <Label>الطول (length)</Label>
+                <Input {...register("length")} placeholder="مثال: 120 سم" maxLength={100} />
+              </div>
+              <div className="space-y-2">
+                <Label>الخامة (material)</Label>
+                <Input {...register("material")} placeholder="مثال: قطن 100%" maxLength={200} />
               </div>
             </div>
 

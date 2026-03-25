@@ -270,6 +270,9 @@ Security pipeline: size (5MB) → extension whitelist → magic bytes → GUID f
         "mainImageUrl": "https://localhost:7208/images/products/abc.jpg",
         "listingMainImageUrl": "https://localhost:7208/images/products/main.jpg",
         "listingHoverImageUrl": "https://localhost:7208/images/products/hover.jpg",
+        "includes": "طرحة مطرزة",
+        "length": "150 cm",
+        "material": "حرير كريب",
         "displayImages": [
           { "id": "...", "imageUrl": "...", "sortOrder": 0, "altText": "الصورة الرئيسية" },
           { "id": "...", "imageUrl": "...", "sortOrder": 1, "altText": "صورة التمرير" }
@@ -328,6 +331,9 @@ Same as listing item but `colors[]` is fully populated.
 | `basePrice` | decimal | ✅ | > 0 |
 | `categoryId` | Guid | ✅ | — |
 | `sizeTypeId` | Guid | ✅ | — |
+| `includes` | string | — | UX limit: 2000 chars (not enforced server-side) |
+| `length` | string | — | UX limit: 200 chars (not enforced server-side) |
+| `material` | string | — | UX limit: 500 chars (not enforced server-side) |
 | `isActive` | bool | — | Default true |
 | `discountType` | int | — | 0=Percentage, 1=FixedAmount |
 | `discountValue` | decimal | — | ≥ 0 |
@@ -397,20 +403,39 @@ Full image security pipeline applied (size → extension → magic bytes → GUI
   "data": {
     "id": "cart-uuid",
     "userId": "user-uuid",
-    "cartItems": [
+    "items": [
       {
         "id": "item-uuid",
         "productVariantId": "variant-uuid",
+        "productId": "product-uuid",
+        "categoryId": "category-uuid",
         "productName": "عباءة خليجية فاخرة",
         "colorName": "أسود",
         "sizeName": "L",
         "quantity": 2,
+        "basePrice": 350.00,
         "unitPrice": 297.50,
-        "imageUrl": "https://localhost:7208/images/products/abc.jpg"
+        "totalPrice": 595.00,
+        "imageUrl": "https://localhost:7208/images/products/abc.jpg",
+        "availableQuantity": 15,
+        "isAvailable": true
       }
     ],
     "totalItems": 2,
-    "subTotal": 595.00
+    "subTotal": 595.00,
+    "baseSubTotal": 700.00,
+    "promotionDiscount": 105.00,
+    "shipping": 0.00,
+    "total": 490.00,
+    "appliedPromotions": [
+      {
+        "name": "Summer 15%",
+        "type": "Percentage",
+        "savedAmount": 105.00,
+        "description": "15% off",
+        "allowCoupon": true
+      }
+    ]
   }
 }
 ```
@@ -600,6 +625,117 @@ Full image security pipeline applied (size → extension → magic bytes → GUI
 ### 🔒 PUT /api/discounts/{id:guid}
 ### 🔒 DELETE /api/discounts/{id:guid}
 
+#### Response Shape — `DiscountResponse`
+> ⚠️ **Type distinction in response:** `discountType` and `targetType` are returned as **strings** (e.g., `"Percentage"`, `"FixedAmount"`, `"Product"`, `"Category"`), not integers. The request body uses integers; the response uses string labels.
+
+> ℹ️ **`isValidNow` does NOT exist** in the response DTO. Frontend must compute it:
+> ```
+> isValidNow = isActive && startDate <= now && (endDate == null || endDate >= now)
+> ```
+
+---
+
+## Promotion Endpoints (Admin CRUD)
+
+> ℹ️ Promotions are **automatically applied** to every Cart response — no client action needed.
+> These endpoints allow the Admin to manage (create / edit / delete) the promotions that power the engine.
+
+### 🔒 GET /api/promotions
+**Description:** List promotions. By default returns only active promotions within their date range.
+
+#### Query Params
+| Param | Type | Default |
+|---|---|---|
+| `includeInactive` | bool | false |
+
+#### Response — HTTP 200
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Summer 15% Off",
+      "type": "Percentage",
+      "scope": "Cart",
+      "value": 15.0,
+      "startDate": "2026-06-01T00:00:00Z",
+      "endDate": "2026-08-31T23:59:59Z",
+      "isActive": true,
+      "priority": 10,
+      "isStackable": true,
+      "allowCouponStacking": true,
+      "productId": null,
+      "categoryId": null,
+      "buyQuantity": null,
+      "getQuantity": null,
+      "getProductId": null,
+      "createdAt": "2026-03-24T09:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 🔒 GET /api/promotions/{id:guid}
+**Description:** Get a single promotion by ID.
+
+#### Errors
+| HTTP | Condition |
+|---|---|
+| 404 | Promotion not found |
+
+---
+
+### 🔒 POST /api/promotions
+**Description:** Create a new promotion.
+
+#### Request
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | ✅ | 2–200 chars |
+| `type` | int | ✅ | 0=Percentage, 1=Fixed, 2=BuyXGetY, 3=FreeShipping |
+| `scope` | int | ✅ | 0=Product, 1=Category, 2=Cart |
+| `value` | decimal | ✅ | ≥ 0 (ignored for FreeShipping) |
+| `startDate` | DateTime | — | Inclusive start |
+| `endDate` | DateTime | — | Inclusive end, null = no expiry |
+| `isActive` | bool | — | Default true |
+| `priority` | int | — | Higher = applied first |
+| `isStackable` | bool | — | Default true — false stops further promos |
+| `allowCouponStacking` | bool | — | Default true — false blocks coupon at checkout |
+| `productId` | Guid | — | Required if scope = Product |
+| `categoryId` | Guid | — | Required if scope = Category |
+| `buyQuantity` | int | — | Required if type = BuyXGetY |
+| `getQuantity` | int | — | Required if type = BuyXGetY |
+| `getProductId` | Guid | — | Optional — BuyXGetY free product |
+
+#### Response — HTTP 201
+
+---
+
+### 🔒 PUT /api/promotions/{id:guid}
+**Description:** Update an existing promotion. Same request body as POST.
+
+#### Response — HTTP 200
+
+#### Errors
+| HTTP | Condition |
+|---|---|
+| 404 | Promotion not found |
+
+---
+
+### 🔒 DELETE /api/promotions/{id:guid}
+**Description:** Permanently delete a promotion.
+
+#### Response — HTTP 200
+
+#### Errors
+| HTTP | Condition |
+|---|---|
+| 404 | Promotion not found |
+
 ---
 
 ## Coupon Endpoints
@@ -745,7 +881,7 @@ When creating an order with a `couponCode`, the system checks if any applied pro
 ### ✅ POST /api/users/addresses
 ### ✅ PUT /api/users/addresses/{id:guid}
 ### ✅ DELETE /api/users/addresses/{id:guid}
-### ✅ PUT /api/users/addresses/{id:guid}/default
+### ✅ POST /api/users/addresses/{id:guid}/set-default
 
 #### Create/Update Address Request
 | Field | Type | Required |
@@ -792,6 +928,74 @@ When creating an order with a `couponCode`, the system checks if any applied pro
 
 #### Response — HTTP 200
 Returns the updated governorate object.
+
+---
+
+## Review Endpoints (Admin)
+
+### 🔒 POST /api/admin/reviews/{reviewId}/images
+**Content-Type:** `multipart/form-data`
+**Description:** Upload a new image for a specific review. Returns relative path just like products.
+
+### 🔒 DELETE /api/admin/reviews/images/{imageId}
+**Description:** Delete a review image by its ID.
+
+### 🔒 PUT /api/admin/reviews/{reviewId}/images/reorder
+**Description:** Reorder all images for a review.
+#### Request
+```json
+{
+  "items": [
+    { "imageId": "uuid1", "displayOrder": 1 },
+    { "imageId": "uuid2", "displayOrder": 2 }
+  ]
+}
+```
+
+---
+
+## Announcement Endpoints
+
+### 🌐 GET /api/announcements/active
+**Description:** Get all active announcements (Cached for 5 minutes). Validates `StartDate <= now <= EndDate` and `IsActive = true`.
+
+#### Response — HTTP 200
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "text": "خصم 20% بمناسبة العيد",
+      "backgroundColor": "#FF0000",
+      "redirectUrl": "/promotions/eid",
+      "startDate": "2026-03-01T00:00:00Z",
+      "endDate": "2026-03-30T00:00:00Z",
+      "priority": 1,
+      "isCurrentlyActive": true,
+      "isActive": true
+    }
+  ]
+}
+```
+
+### 🔒 GET /api/admin/announcements
+**Description:** Get all announcements (Admin only). Includes inactive ones.
+
+### 🔒 POST /api/admin/announcements
+### 🔒 PUT /api/admin/announcements/{id:guid}
+### 🔒 DELETE /api/admin/announcements/{id:guid}
+
+#### Create/Update Announcement Request
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `text` | string | ✅ | Max 1000 chars |
+| `backgroundColor` | string | ✅ | Hex format e.g., `#FFFFFF` |
+| `redirectUrl` | string | — | Max 500 chars |
+| `startDate` | DateTime | ✅ | — |
+| `endDate` | DateTime | ✅ | Must be > startDate |
+| `isActive` | bool | ✅ | Default true |
+| `priority` | int | ✅ | Order of display |
 
 ---
 

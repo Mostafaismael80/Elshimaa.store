@@ -61,17 +61,25 @@ export default function Orders() {
   const [newStatus, setNewStatus] = useState<string>("");
   const [statusNotes, setStatusNotes] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
 
   // ─── Queries ──────────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
-    queryKey: ["orders", page, search, statusFilter],
+    queryKey: ["orders", page, search, statusFilter, fromDate, toDate, paymentStatusFilter, paymentMethodFilter],
     queryFn: () =>
       ordersApi.getAll({
         pageNumber: page,
         pageSize: 15,
         search: search || undefined,
         orderStatus: statusFilter !== "all" ? Number(statusFilter) : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        paymentStatus: paymentStatusFilter !== "all" ? paymentStatusFilter : undefined,
+        paymentMethod: paymentMethodFilter !== "all" ? paymentMethodFilter : undefined,
         sortBy: "createdAt",
         sortDescending: true,
       }),
@@ -126,6 +134,13 @@ export default function Orders() {
   const canCancel = (order: OrderResponse) =>
     order.orderStatus !== "Shipped" && order.orderStatus !== "Delivered" && order.orderStatus !== "Cancelled";
 
+  /** Check if a status transition is dangerous */
+  const isDangerousTransition = (currentStatus: string, newSt: string) => {
+    // Cancelling a Confirmed order is risky
+    if (newSt === String(ORDER_STATUS.Cancelled) && currentStatus === "Confirmed") return true;
+    return false;
+  };
+
   const orders = data?.data?.items ?? [];
   const pagination = data?.data;
 
@@ -168,6 +183,51 @@ export default function Orders() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Filter className="h-4 w-4" /> {pagination?.totalCount ?? 0} نتيجة
         </div>
+      </div>
+
+      {/* Advanced Filters */}
+      <div className="flex gap-3 flex-wrap items-end">
+        <div className="space-y-1">
+          <Label className="text-xs">من تاريخ</Label>
+          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-36 h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">إلى تاريخ</Label>
+          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-36 h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">حالة الدفع</Label>
+          <Select value={paymentStatusFilter} onValueChange={(v) => { setPaymentStatusFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 h-9">
+              <SelectValue placeholder="الكل" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">الكل</SelectItem>
+              <SelectItem value="Pending">قيد الانتظار</SelectItem>
+              <SelectItem value="Paid">مدفوع</SelectItem>
+              <SelectItem value="Failed">فاشل</SelectItem>
+              <SelectItem value="Refunded">مسترد</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">طريقة الدفع</Label>
+          <Select value={paymentMethodFilter} onValueChange={(v) => { setPaymentMethodFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 h-9">
+              <SelectValue placeholder="الكل" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">الكل</SelectItem>
+              <SelectItem value="CashOnDelivery">الدفع عند الاستلام</SelectItem>
+              <SelectItem value="Online">أونلاين</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {(fromDate || toDate || paymentStatusFilter !== "all" || paymentMethodFilter !== "all") && (
+          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFromDate(""); setToDate(""); setPaymentStatusFilter("all"); setPaymentMethodFilter("all"); setPage(1); }}>
+            مسح الفلاتر
+          </Button>
+        )}
       </div>
 
       {/* Orders Table */}
@@ -382,6 +442,9 @@ export default function Orders() {
               {updateStatusMutation.isPending && <Spinner className="h-4 w-4" />}
               تحديث
             </Button>
+            {statusDialogOrder && newStatus && isDangerousTransition(statusDialogOrder.orderStatus, newStatus) && (
+              <p className="text-xs text-orange-600 mt-2">⚠️ تحذير: هذا الانتقال قد يكون غير قابل للتراجع.</p>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

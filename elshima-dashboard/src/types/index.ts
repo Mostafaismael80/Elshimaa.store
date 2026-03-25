@@ -214,6 +214,9 @@ export interface CreateProductRequest {
   sizeTypeId: string;
   isActive: boolean;
   isFeatured: boolean;
+  includes?: string | null;
+  length?: string | null;
+  material?: string | null;
   colors: CreateColorDto[];
   displayImages?: CreateDisplayImageDto[] | null; // null = none, exactly 2 when provided
   discountType?: number | null;
@@ -233,6 +236,9 @@ export interface UpdateProductRequest {
   categoryId: string;
   isActive: boolean;
   isFeatured: boolean;
+  includes?: string | null;
+  length?: string | null;
+  material?: string | null;
   colors?: CreateColorDto[]; // optional, include to replace colors
   displayImages?: CreateDisplayImageDto[] | null;
   discountType?: number | null;
@@ -300,8 +306,8 @@ export interface OrderResponse {
 
 export interface OrderFilterParams extends PaginationParams {
   orderStatus?: number;
-  paymentStatus?: number;
-  paymentMethod?: number;
+  paymentStatus?: string;
+  paymentMethod?: string;
   userId?: string;
   fromDate?: string;
   toDate?: string;
@@ -465,25 +471,111 @@ export interface UpdateShippingCostRequest {
 
 // ─── Promotions ───────────────────────────────────────────────────────────────
 
+/** POST /api/promotions — type/scope are ints */
 export interface CreatePromotionRequest {
   name: string;
-  description?: string;
-  promotionType: number; // 0=Percentage, 1=Fixed, 2=BuyXGetY, 3=FreeShipping
-  value?: number;
-  priority: number;
-  isStackable: boolean;
-  allowCouponStacking: boolean;
-  buyQuantity?: number;
-  getQuantity?: number;
-  startDate: string;
+  type: number;           // 0=Percentage, 1=Fixed, 2=BuyXGetY, 3=FreeShipping
+  scope: number;          // 0=Product, 1=Category, 2=Cart
+  value: number;          // ≥ 0 (ignored for FreeShipping)
+  startDate?: string | null;
   endDate?: string | null;
-  isActive: boolean;
+  isActive?: boolean;
+  priority?: number;
+  isStackable?: boolean;
+  allowCouponStacking?: boolean;
+  productId?: string | null;
+  categoryId?: string | null;
+  buyQuantity?: number | null;
+  getQuantity?: number | null;
+  getProductId?: string | null;
 }
 
 export type UpdatePromotionRequest = CreatePromotionRequest;
 
-export interface PromotionResponse extends CreatePromotionRequest {
+/** GET /api/promotions — type/scope come back as strings */
+export interface PromotionResponse {
   id: string;
+  name: string;
+  type: string;           // "Percentage" | "Fixed" | "BuyXGetY" | "FreeShipping"
+  scope: string;          // "Product" | "Category" | "Cart"
+  value: number;
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+  priority: number;
+  isStackable: boolean;
+  allowCouponStacking: boolean;
+  productId: string | null;
+  categoryId: string | null;
+  buyQuantity: number | null;
+  getQuantity: number | null;
+  getProductId: string | null;
+  createdAt: string;
+}
+
+/** Arabic labels for promotion type — key = backend string value */
+export const PROMOTION_TYPE_LABELS: Record<string, string> = {
+  Percentage: 'نسبة مئوية',
+  Fixed: 'مبلغ ثابت',
+  BuyXGetY: 'اشتري X واحصل على Y',
+  FreeShipping: 'شحن مجاني',
+};
+
+/** Arabic labels for promotion scope */
+export const PROMOTION_SCOPE_LABELS: Record<string, string> = {
+  Product: 'منتج',
+  Category: 'فئة',
+  Cart: 'السلة',
+};
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+export interface AnnouncementResponse {
+  id: string;
+  text: string;
+  backgroundColor: string;
+  redirectUrl: string | null;
+  startDate: string;
+  endDate: string;
+  priority: number;
+  isActive: boolean;
+  isCurrentlyActive: boolean;
+  createdAt?: string;
+}
+
+export interface CreateAnnouncementRequest {
+  text: string;
+  backgroundColor: string;
+  redirectUrl?: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  priority: number;
+}
+
+export type UpdateAnnouncementRequest = CreateAnnouncementRequest;
+
+// ─── Reviews (Admin image management) ─────────────────────────────────────────
+
+export interface ReviewImageResponse {
+  id: string;
+  imageUrl: string;
+  displayOrder: number;
+}
+
+export interface ReviewResponse {
+  id: string;
+  productId: string;
+  productName: string;
+  customerName: string;
+  rating: number;
+  comment: string | null;
+  images: ReviewImageResponse[];
+  createdAt: string;
+}
+
+export interface ReorderReviewImagesRequest {
+  items: { imageId: string; displayOrder: number }[];
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────

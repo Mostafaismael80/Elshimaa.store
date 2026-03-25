@@ -12,6 +12,9 @@ import {
   Store,
   Map,
   Zap,
+  Percent,
+  Megaphone,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../context/AuthContext";
@@ -30,7 +33,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: "الطلبات", icon: <ShoppingCart className="h-5 w-5" />, to: "/orders" },
   { label: "العملاء", icon: <Users className="h-5 w-5" />, to: "/customers" },
   { label: "محرك العروض", icon: <Zap className="h-5 w-5" />, to: "/promotions" },
+  { label: "الخصومات", icon: <Percent className="h-5 w-5" />, to: "/discounts" },
   { label: "الكوبونات", icon: <Ticket className="h-5 w-5" />, to: "/coupons" },
+  { label: "الإعلانات", icon: <Megaphone className="h-5 w-5" />, to: "/announcements" },
+  { label: "المراجعات", icon: <MessageSquare className="h-5 w-5" />, to: "/reviews" },
   { label: "المحافظات", icon: <Map className="h-5 w-5" />, to: "/governorates" },
 ];
 
