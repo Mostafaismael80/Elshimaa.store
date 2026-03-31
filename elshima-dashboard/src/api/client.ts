@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ApiResponse, AuthResponse } from '../types';
+import type { ApiResponse, AuthResponse } from '../types/index';
 
 export const BASE_URL = 'https://localhost:7208';
 const API_BASE = `${BASE_URL}/api`;
