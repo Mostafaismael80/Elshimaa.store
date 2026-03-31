@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, FolderTree, Image } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderTree, Image, Tag } from "lucide-react";
 import { categoriesApi } from "../api/categories";
 import { imagesApi } from "../api/images";
 import { Button } from "../components/ui/button";
@@ -112,12 +112,16 @@ export default function Categories() {
       parentCategoryId: cat.parentCategoryId,
       displayOrder: cat.displayOrder,
       isActive: cat.isActive,
-      // Note: Backend GET doesn't return existing discount data for categories in this endpoint.
-      isDiscountActive: false,
-      discountType: 0,
-      discountValue: 0,
-      discountStartDate: "",
-      discountEndDate: "",
+      // ── Issue 2A: pre-fill discount fields from API response ──────────────
+      isDiscountActive: cat.isDiscountActive ?? false,
+      discountType: cat.discountType === "Percentage" ? 0 : cat.discountType === "FixedAmount" ? 1 : 0,
+      discountValue: cat.discountValue ?? 0,
+      discountStartDate: cat.discountStartDate
+        ? new Date(cat.discountStartDate).toISOString().slice(0, 16)
+        : "",
+      discountEndDate: cat.discountEndDate
+        ? new Date(cat.discountEndDate).toISOString().slice(0, 16)
+        : "",
     });
     setImageFile(null);
     setDialogOpen(true);
@@ -168,7 +172,7 @@ export default function Categories() {
           if (values.discountStartDate) fd.append("discountStartDate", values.discountStartDate);
           if (values.discountEndDate) fd.append("discountEndDate", values.discountEndDate);
         }
-//
+
         await createMutation.mutateAsync(fd);
       }
     } catch (error: any) {
@@ -213,7 +217,7 @@ export default function Categories() {
                 <TableHead className="text-right py-4">الفئة الأم</TableHead>
                 <TableHead className="text-right py-4">المنتجات</TableHead>
                 <TableHead className="text-right py-4">الترتيب</TableHead>
-                <TableHead className="text-right py-4 w-28">الحالة</TableHead>
+                <TableHead className="text-right py-4 w-36">الحالة</TableHead>
                 <TableHead className="text-left py-4 w-28">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
@@ -246,10 +250,19 @@ export default function Categories() {
                   <TableCell className="text-right py-4">{cat.productCount}</TableCell>
                   <TableCell className="text-right py-4">{cat.displayOrder}</TableCell>
                   <TableCell className="text-right py-4">
-                    <div className="flex justify-start">
+                    {/* ── Issue 2A: status + discount badge ── */}
+                    <div className="flex flex-col gap-1 items-start">
                       <Badge variant={cat.isActive ? "success" : "secondary"}>
                         {cat.isActive ? "نشط" : "غير نشط"}
                       </Badge>
+                      {cat.isDiscountActive && (
+                        <Badge variant="destructive" className="gap-1 text-xs">
+                          <Tag className="h-3 w-3" />
+                          {cat.discountType === "Percentage"
+                            ? `خصم ${cat.discountValue}%`
+                            : `خصم ${cat.discountValue} ج.م`}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-left py-4">
@@ -269,119 +282,129 @@ export default function Categories() {
         </Card>
       )}
 
-      {/* Create/Edit Dialog */}
+      {/* Create/Edit Dialog — Issue 1: max-h + flex-col, scrollable body, pinned footer */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{selectedCategory ? "تعديل الفئة" : "إضافة فئة جديدة"}</DialogTitle>
             <DialogDescription>
               {selectedCategory ? "قم بتحديث تفاصيل الفئة." : "أدخل التفاصيل لإنشاء فئة جديدة."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label>الاسم (بالعربية)</Label>
-              <Input {...register("nameAr")} placeholder="اسم الفئة" />
-              {errors.nameAr && <p className="text-xs text-red-500">{errors.nameAr.message}</p>}
-            </div>
 
-            <div className="space-y-2">
-              <Label>الوصف (بالعربية)</Label>
-              <Textarea {...register("descriptionAr")} placeholder="وصف الفئة" rows={2} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+          {/* Scrollable body area */}
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-1 py-2 space-y-5">
               <div className="space-y-2">
-                <Label>الفئة الأم</Label>
-                <Select
-                  value={watch("parentCategoryId") ?? "none"}
-                  onValueChange={(v) => setValue("parentCategoryId", v === "none" ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="لا شيء (رئيسي)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">لا شيء (رئيسي)</SelectItem>
-                    {rootCategories
-                      .filter((c) => c.id !== selectedCategory?.id)
-                      .map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.nameAr}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <Label>الاسم (بالعربية)</Label>
+                <Input {...register("nameAr")} placeholder="اسم الفئة" />
+                {errors.nameAr && <p className="text-xs text-red-500">{errors.nameAr.message}</p>}
               </div>
-              <div className="space-y-2">
-                <Label>ترتيب العرض</Label>
-                <Input type="number" {...register("displayOrder")} />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label>صورة الفئة (اختياري)</Label>
-              <Input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-              />
-              {selectedCategory && selectedCategory.imageUrl && !imageFile && (
-                <div className="mt-2 flex items-center gap-2">
-                  <img src={selectedCategory.imageUrl} alt="current" className="h-10 w-10 object-cover rounded-md" />
-                  <span className="text-xs text-muted-foreground">الصورة الحالية</span>
+              <div className="space-y-2">
+                <Label>الوصف (بالعربية)</Label>
+                <Textarea {...register("descriptionAr")} placeholder="وصف الفئة" rows={2} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>الفئة الأم</Label>
+                  <Select
+                    value={watch("parentCategoryId") ?? "none"}
+                    onValueChange={(v) => setValue("parentCategoryId", v === "none" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="لا شيء (رئيسي)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">لا شيء (رئيسي)</SelectItem>
+                      {rootCategories
+                        .filter((c) => c.id !== selectedCategory?.id)
+                        .map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.nameAr}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label>ترتيب العرض</Label>
+                  <Input type="number" {...register("displayOrder")} />
+                </div>
+              </div>
 
-            <div className="space-y-4 border p-4 rounded-lg bg-gray-50/50">
-              <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-blue-700">
-                <input type="checkbox" {...register("isDiscountActive")} className="rounded" />
-                تفعيل خصم على مستوى القسم
+              <div className="space-y-2">
+                <Label>صورة الفئة (اختياري)</Label>
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                />
+                {selectedCategory && selectedCategory.imageUrl && !imageFile && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={selectedCategory.imageUrl} alt="current" className="h-10 w-10 object-cover rounded-md" />
+                    <span className="text-xs text-muted-foreground">الصورة الحالية</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Discount section */}
+              <div className="space-y-4 border p-4 rounded-lg bg-gray-50/50">
+                <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-blue-700">
+                  <input type="checkbox" {...register("isDiscountActive")} className="rounded" />
+                  تفعيل خصم على مستوى القسم
+                </label>
+
+                {/* Issue 2A: active discount note */}
+                {selectedCategory?.isDiscountActive && (
+                  <p className="text-xs text-green-700 font-medium">
+                    ✅ يوجد خصم نشط حالياً على هذا القسم — يمكنك تعديله أو إلغاء تفعيله
+                  </p>
+                )}
+
+                {watch("isDiscountActive") && (
+                  <div className="space-y-4 pt-2 border-t">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>نوع الخصم</Label>
+                        <Select value={String(watch("discountType") ?? 0)} onValueChange={(v) => setValue("discountType", parseInt(v))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">نسبة مئوية (%)</SelectItem>
+                            <SelectItem value="1">مبلغ ثابت (ج.م)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>القيمة</Label>
+                        <Input type="number" step="0.01" min="0" {...register("discountValue")} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>تاريخ البداية (اختياري)</Label>
+                        <Input type="datetime-local" {...register("discountStartDate")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>تاريخ النهاية (اختياري)</Label>
+                        <Input type="datetime-local" {...register("discountEndDate")} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer border-t pt-4">
+                <input type="checkbox" {...register("isActive")} className="rounded" />
+                تفعيل القسم (نشط)
               </label>
-              
-              {watch("isDiscountActive") && (
-                <div className="space-y-4 pt-2 border-t">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>نوع الخصم</Label>
-                      <Select value={String(watch("discountType") ?? 0)} onValueChange={(v) => setValue("discountType", parseInt(v))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">نسبة مئوية (%)</SelectItem>
-                          <SelectItem value="1">مبلغ ثابت (ج.م)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>القيمة</Label>
-                      <Input type="number" step="0.01" min="0" {...register("discountValue")} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>تاريخ البداية (اختياري)</Label>
-                      <Input type="datetime-local" {...register("discountStartDate")} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>تاريخ النهاية (اختياري)</Label>
-                      <Input type="datetime-local" {...register("discountEndDate")} />
-                    </div>
-                  </div>
-                  {selectedCategory && (
-                    <p className="text-xs text-orange-600">تسجيل: الخصم سيتم حفظه في القواعد المركزية، ولن يظهر بعد حفظه في هذه الشاشة عند التعديل مستقبلاً.</p>
-                  )}
-                </div>
-              )}
             </div>
 
-            <label className="flex items-center gap-2 text-sm cursor-pointer border-t pt-4">
-              <input type="checkbox" {...register("isActive")} className="rounded" />
-              تفعيل القسم (نشط)
-            </label>
-
-            <DialogFooter>
+            {/* Pinned footer — always visible */}
+            <DialogFooter className="pt-4 border-t mt-2 shrink-0">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? <Spinner size="sm" className="ml-2" /> : null}
-                {selectedCategory ? "تحديث" : "إنشاء"}
+                {selectedCategory ? "حفظ التعديلات" : "إنشاء"}
               </Button>
             </DialogFooter>
           </form>

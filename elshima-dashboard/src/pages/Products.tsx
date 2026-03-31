@@ -4,12 +4,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Plus, Pencil, Trash2, Search, Image, Star, Eye, Package, X, Upload,
+  Plus, Pencil, Trash2, Search, Image, Star, Package, X, Upload,
   ChevronLeft, ChevronRight, Tag, Filter,
 } from "lucide-react";
 import { productsApi } from "../api/products";
 import { categoriesApi } from "../api/categories";
 import { imagesApi } from "../api/images";
+import { lookupsApi } from "../api/lookups";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -28,7 +29,7 @@ import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
 import { formatCurrency } from "../lib/utils";
-import type { ProductResponse, CreateProductRequest, UpdateProductRequest, CreateColorDto } from "../types";
+import type { ProductResponse, CreateProductRequest, UpdateProductRequest } from "../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,8 +50,9 @@ interface ColorSize {
 }
 
 interface ColorEntry {
-  colorId: string;
-  colorName: string; // for display only
+  productColorId: string; // for Smart Merge matching
+  colorId: string;        // for lookup Selection
+  colorName: string;      // for display only
   isDefault: boolean;
   images: ColorImage[];
   sizes: ColorSize[];
@@ -66,6 +68,7 @@ interface DisplayImageEntry {
 }
 
 const defaultColorEntry = (): ColorEntry => ({
+  productColorId: "",
   colorId: "",
   colorName: "",
   isDefault: false,
@@ -81,9 +84,9 @@ const defaultDisplayImages = (): DisplayImageEntry[] => [
 // ─── Form Schema ──────────────────────────────────────────────────────────────
 
 const productSchema = z.object({
-  nameAr: z.string().min(2, "الاسم مطلوب (2 أحرف على الأقل)"),
+  nameAr: z.string().min(2, "الاسم مطلوب"),
   descriptionAr: z.string().optional(),
-  basePrice: z.coerce.number().min(0.01, "السعر يجب أن يكون أكبر من 0"),
+  basePrice: z.coerce.number().min(0.01, "السعر يجب أن يكون أكبر من صفر"),
   categoryId: z.string().min(1, "الفئة مطلوبة"),
   sizeTypeId: z.string().default(""),
   isActive: z.boolean().default(true),
@@ -159,7 +162,7 @@ export default function Products() {
     queryFn: () =>
       productsApi.getAll({
         pageNumber: page,
-        pageSize: 12,
+        pageSize: 20,
         search: search || undefined,
         isActive: filterActive === "active" ? true : filterActive === "inactive" ? false : undefined,
         categoryId: filterCategory !== "all" ? filterCategory : undefined,
@@ -171,7 +174,25 @@ export default function Products() {
     queryFn: () => categoriesApi.getAll(true),
   });
 
+  const { data: colorsData } = useQuery({
+    queryKey: ["lookups-colors"],
+    queryFn: () => lookupsApi.getColors(),
+  });
+
+  const { data: sizesData } = useQuery({
+    queryKey: ["lookups-sizes"],
+    queryFn: () => lookupsApi.getSizes(),
+  });
+
+  const { data: sizeTypesData } = useQuery({
+    queryKey: ["lookups-sizetypes"],
+    queryFn: () => lookupsApi.getSizeTypes(),
+  });
+
   const categories = categoriesData?.data ?? [];
+  const systemColors = colorsData ?? [];
+  const systemSizes = sizesData ?? [];
+  const systemSizeTypes = sizeTypesData ?? [];
 
   // ─── Form ─────────────────────────────────────────────────────────────────────
 
@@ -215,13 +236,39 @@ export default function Products() {
       toast("تم حذف المنتج", "success");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setDeleteDialogOpen(false);
+
+      // Auto-navigate back if current page no longer exists after deletion
+      const totalAfterDelete = (pagination?.totalCount ?? 1) - 1;
+      const maxPage = Math.ceil(totalAfterDelete / 20);
+      if (page > maxPage) setPage(Math.max(1, maxPage));
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الحذف", "error"),
   });
 
   // ─── Color helpers ────────────────────────────────────────────────────────────
 
-  const addColor = () => setColors((prev) => [...prev, { ...defaultColorEntry(), isDefault: prev.length === 0 }]);
+  const addColor = () => {
+    const last = colors[colors.length - 1];
+
+    const isComplete =
+      last.colorId.trim() !== "" &&
+      last.colorName.trim() !== "" &&
+      last.images.some((img) => img.imageUrl.trim() !== "" || img.file !== null) &&
+      last.sizes.some((s) => s.sizeName.trim() !== "" && s.availableQuantity > 0);
+
+    if (!isComplete) {
+      toast(
+        "يرجى إكمال بيانات اللون الحالي أولاً (اللون، صورة واحدة على الأقل، ومقاس واحد بكمية)",
+        "error"
+      );
+      return;
+    }
+
+    setColors((prev) => [
+      ...prev,
+      { ...defaultColorEntry(), isDefault: prev.length === 0 },
+    ]);
+  };
   const removeColor = (ci: number) => setColors((prev) => prev.filter((_, i) => i !== ci));
   const updateColor = (ci: number, field: keyof ColorEntry, value: any) =>
     setColors((prev) => prev.map((c, i) => (i === ci ? { ...c, [field]: value } : c)));
@@ -294,10 +341,12 @@ export default function Products() {
 
   const openEdit = async (product: ProductResponse) => {
     setSelectedProduct(product);
+
+    // Pre-fill form with list-response data immediately (fast path)
     reset({
       nameAr: product.nameAr,
       descriptionAr: product.descriptionAr ?? "",
-      basePrice: product.basePrice,
+      basePrice: product.basePrice || product.originalPrice || 0,
       categoryId: product.categoryId,
       sizeTypeId: "",
       isActive: product.isActive,
@@ -305,20 +354,41 @@ export default function Products() {
       includes: (product as any).includes ?? "",
       length: (product as any).length ?? "",
       material: (product as any).material ?? "",
-      isDiscountActive: false,
-      discountType: 0,
-      discountValue: 0,
+      isDiscountActive: product.hasDiscount ?? false,
+      discountType: (product.discountType === 'Percentage' ? 0 : product.discountType === 'FixedAmount' ? 1 : 0),
+      discountValue: product.discountValue ?? 0,
       discountStartDate: "",
       discountEndDate: "",
     });
 
-    // Load full detail to get colors with images/variants
+    // Load full detail to get colors with images/variants + complete product data
     try {
       const detail = await productsApi.getById(product.id);
       const fullProduct = detail.data;
+
+      // Override form with authoritative full-detail values
+      reset({
+        nameAr: fullProduct.nameAr,
+        descriptionAr: fullProduct.descriptionAr ?? "",
+        basePrice: fullProduct.basePrice || fullProduct.originalPrice || 0,
+        categoryId: fullProduct.categoryId,
+        sizeTypeId: (fullProduct as any).sizeTypeId ?? "",
+        isActive: fullProduct.isActive,
+        isFeatured: fullProduct.isFeatured,
+        includes: (fullProduct as any).includes ?? "",
+        length: (fullProduct as any).length ?? "",
+        material: (fullProduct as any).material ?? "",
+        isDiscountActive: fullProduct.hasDiscount ?? false,
+        discountType: (fullProduct.discountType === 'Percentage' ? 0 : fullProduct.discountType === 'FixedAmount' ? 1 : 0),
+        discountValue: fullProduct.discountValue ?? 0,
+        discountStartDate: "",
+        discountEndDate: "",
+      });
+
       if (fullProduct.colors && fullProduct.colors.length > 0) {
         setColors(
           fullProduct.colors.map((c) => ({
+            productColorId: c.id,
             colorId: c.colorId,
             colorName: c.colorName,
             isDefault: c.isDefault,
@@ -368,36 +438,95 @@ export default function Products() {
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
 
-  const resolveColorsForSubmit = async (): Promise<CreateColorDto[] | null> => {
-    if (colors.some((c) => !c.colorId.trim())) {
-      toast("يرجى إدخال معرّف لكل لون (colorId)", "error");
+  const resolveColorsForUpdate = async () => {
+    if (colors.length === 0) {
+      toast("يجب اختيار لون واحد على الأقل", "error");
       return null;
     }
+    if (colors.some((c) => c.sizes.length === 0)) {
+      toast("يجب اختيار مقاس واحد على الأقل", "error");
+      return null;
+    }
+
     return Promise.all(
-      colors.map(async (c) => ({
-        colorId: c.colorId.trim(),
-        isDefault: c.isDefault,
-        images: await Promise.all(
+      colors.map(async (c) => {
+        const resolvedImages = await Promise.all(
           c.images.map(async (img) => ({
             imageUrl: await resolveImageUrl(img),
             displayOrder: img.displayOrder,
             isMain: img.isMain,
             altText: img.altText || undefined,
           }))
-        ),
-        variants: c.sizes.map((s) => ({
-          sizeId: s.sizeId.trim(),
-          availableQuantity: Number(s.availableQuantity),
-          priceOverride: s.priceOverride != null ? Number(s.priceOverride) : null,
-        })),
-      }))
+        );
+        const filteredImages = resolvedImages.filter(img => img.imageUrl && img.imageUrl.trim() !== "");
+
+        return {
+          colorId: c.productColorId?.trim() || undefined,
+          colorName: c.colorName.trim(),
+          isDefault: c.isDefault,
+          images: filteredImages,
+          sizes: c.sizes.map((s) => ({
+            sizeId: s.sizeId?.trim() || undefined,
+            sizeName: s.sizeName.trim(),
+            availableQuantity: Number(s.availableQuantity),
+            priceOverride: s.priceOverride != null ? Number(s.priceOverride) : null,
+          })),
+        };
+      })
     );
   };
 
-  const onSubmit = async (values: ProductForm) => {
-    const resolvedColors = await resolveColorsForSubmit();
-    if (!resolvedColors) return;
+  const resolveColorsForCreate = async () => {
+    // Validation
+    if (colors.length === 0) {
+      toast("يجب اختيار لون واحد على الأقل", "error");
+      return null;
+    }
+    if (colors.some((c) => c.sizes.length === 0)) {
+      toast("يجب اختيار مقاس واحد على الأقل", "error");
+      return null;
+    }
+    if (colors.some((c) => !c.colorId?.trim() || c.colorId === "00000000-0000-0000-0000-000000000000")) {
+      toast("يرجى اختيار اللون من القائمة المنسدلة", "error");
+      return null;
+    }
+    if (colors.some((c) => c.sizes.some(s => !s.sizeId?.trim() || s.sizeId === "00000000-0000-0000-0000-000000000000"))) {
+      toast("يرجى اختيار المقاس من القائمة المنسدلة", "error");
+      return null;
+    }
+    if (colors.some((c) => c.sizes.some(s => Number(s.availableQuantity) < 0 || isNaN(Number(s.availableQuantity))))) {
+      toast("الكمية يجب أن تكون صفر أو أكثر", "error");
+      return null;
+    }
 
+    return Promise.all(
+      colors.map(async (c) => {
+        const resolvedImages = await Promise.all(
+          c.images.map(async (img) => ({
+            imageUrl: await resolveImageUrl(img),
+            displayOrder: img.displayOrder,
+            isMain: img.isMain,
+            altText: img.altText || undefined,
+          }))
+        );
+        const filteredImages = resolvedImages.filter(img => img.imageUrl && img.imageUrl.trim() !== "");
+
+        return {
+          colorId: c.colorId.trim(),
+          isDefault: c.isDefault,
+          images: filteredImages,
+          variants: c.sizes.map((s) => ({
+            sizeId: s.sizeId!.trim(),
+            availableQuantity: Number(s.availableQuantity),
+            priceOverride: s.priceOverride != null ? Number(s.priceOverride) : null,
+          })),
+        };
+      })
+    );
+  };
+
+
+  const onSubmit = async (values: ProductForm) => {
     let resolvedDisplayImages = undefined;
     if (useDisplayImages) {
       const di = await Promise.all(
@@ -411,6 +540,9 @@ export default function Products() {
     }
 
     if (selectedProduct) {
+      const resolvedColors = await resolveColorsForUpdate();
+      if (!resolvedColors) return;
+
       await updateMutation.mutateAsync({
         id: selectedProduct.id,
         data: {
@@ -433,10 +565,18 @@ export default function Products() {
         },
       });
     } else {
-      if (!values.sizeTypeId?.trim()) {
+      if (!values.categoryId?.trim() || values.categoryId === "00000000-0000-0000-0000-000000000000") {
+        toast("يرجى اختيار القسم", "error");
+        return;
+      }
+      if (!values.sizeTypeId?.trim() || values.sizeTypeId === "00000000-0000-0000-0000-000000000000") {
         toast("يرجى إدخال معرّف نوع المقاس (sizeTypeId)", "error");
         return;
       }
+
+      const resolvedColors = await resolveColorsForCreate();
+      if (!resolvedColors) return;
+
       await createMutation.mutateAsync({
         nameAr: values.nameAr,
         descriptionAr: values.descriptionAr,
@@ -448,7 +588,7 @@ export default function Products() {
         includes: values.includes || null,
         length: values.length || null,
         material: values.material || null,
-        colors: resolvedColors,
+        colors: resolvedColors as any, // Cast to any to override typing from old DTO format in UI
         displayImages: useDisplayImages ? resolvedDisplayImages : null,
         isDiscountActive: values.isDiscountActive,
         discountType: values.isDiscountActive ? values.discountType : null,
@@ -568,9 +708,6 @@ export default function Products() {
                         <span className="text-xs text-muted-foreground line-through">{formatCurrency(product.originalPrice)}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>{product.viewCount}</span> <Eye className="h-3 w-3" />
-                    </div>
                   </div>
                   <div className="flex gap-2" dir="rtl">
                     <Button size="sm" variant="outline" className="flex-1 gap-1 h-8 text-xs" onClick={() => openEdit(product)}>
@@ -644,12 +781,31 @@ export default function Products() {
                 {errors.categoryId && <p className="text-xs text-red-500">{errors.categoryId.message}</p>}
               </div>
 
-              {!selectedProduct && (
-                <div className="space-y-2">
-                  <Label>معرّف نوع المقاس (sizeTypeId) *</Label>
-                  <Input {...register("sizeTypeId")} placeholder="UUID نوع المقاس" />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>نوع المقاس {!selectedProduct && "*"}</Label>
+                <Select
+                  value={watch("sizeTypeId")}
+                  onValueChange={(v) => { if (!selectedProduct) setValue("sizeTypeId", v); }}
+                  disabled={!!selectedProduct}
+                >
+                  <SelectTrigger className={selectedProduct ? "opacity-60 cursor-not-allowed" : ""}>
+                    <SelectValue placeholder="اختر نوع المقاس" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {systemSizeTypes.map((st) => (
+                      <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!selectedProduct && errors.sizeTypeId && (
+                  <p className="text-xs text-red-500">{errors.sizeTypeId.message}</p>
+                )}
+                {selectedProduct && (
+                  <p className="text-xs text-muted-foreground">
+                    نوع المقاس لا يمكن تغييره بعد إنشاء المنتج
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-2 md:col-span-2">
                 <Label>الوصف (بالعربية)</Label>
@@ -745,22 +901,32 @@ export default function Products() {
                   {displayImages.map((d, idx) => (
                     <div key={idx} className="space-y-2">
                       <Label className="text-xs">{idx === 0 ? "الصورة الرئيسية (SortOrder 0)" : "صورة التمرير (SortOrder 1)"}</Label>
-                      {d.previewUrl ? (
-                        <div className="relative h-32 rounded overflow-hidden border bg-gray-100">
+                      <div className="relative h-32 rounded overflow-hidden border bg-gray-100 group">
+                        {d.previewUrl ? (
                           <img src={d.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
-                          <button type="button" onClick={() => clearDisplayImageFile(idx)}
-                            className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow">
-                            <X className="h-3 w-3 text-red-500" />
-                          </button>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-400">
+                            <Image className="h-6 w-6" />
+                            <span className="text-xs">بدون صورة</span>
+                          </div>
+                        )}
+                        
+                        {/* Overlay Controls */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          <label className="cursor-pointer p-2 bg-white rounded-full hover:scale-110 transition-transform shadow-md" title="تغيير الصورة">
+                            <Upload className="h-4 w-4 text-blue-600" />
+                            <input type="file" accept="image/*" className="hidden"
+                              onChange={(e) => { const file = e.target.files?.[0]; if (file) setDisplayImageFile(idx, file); }} />
+                          </label>
+                          
+                          {d.previewUrl && (
+                            <button type="button" onClick={() => clearDisplayImageFile(idx)}
+                              className="p-2 bg-white rounded-full hover:scale-110 transition-transform shadow-md" title="حذف الصورة">
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </button>
+                          )}
                         </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded cursor-pointer bg-gray-50 hover:bg-gray-100 gap-1">
-                          <Upload className="h-5 w-5 text-gray-400" />
-                          <span className="text-xs text-gray-500">اختر صورة</span>
-                          <input type="file" accept="image/*" className="hidden"
-                            onChange={(e) => { const file = e.target.files?.[0]; if (file) setDisplayImageFile(idx, file); }} />
-                        </label>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -791,13 +957,30 @@ export default function Products() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">معرّف اللون (colorId UUID)</Label>
-                      <Input
-                        value={color.colorId}
-                        onChange={(e) => updateColor(ci, "colorId", e.target.value)}
-                        placeholder="UUID"
-                        className="h-8 text-sm font-mono"
-                      />
+                      <Label className="text-xs">اللون</Label>
+                      <Select value={color.colorId} onValueChange={(v) => {
+                        updateColor(ci, "colorId", v);
+                        const selectedColor = systemColors.find(c => c.id === v);
+                        if (selectedColor) {
+                          updateColor(ci, "colorName", selectedColor.name);
+                        }
+                      }}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="اختر اللون" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {systemColors.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <div className="flex items-center gap-2">
+                                {c.hexCode && (
+                                  <div className="w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: c.hexCode }} />
+                                )}
+                                {c.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">اسم اللون (للعرض)</Label>
@@ -880,9 +1063,25 @@ export default function Products() {
                     {color.sizes.map((s, si) => (
                       <div key={si} className="grid grid-cols-4 gap-2 items-end">
                         <div className="space-y-1">
-                          <Label className="text-xs">معرّف المقاس (sizeId)</Label>
-                          <Input value={s.sizeId} onChange={(e) => updateSize(ci, si, "sizeId", e.target.value)}
-                            placeholder="UUID" className="h-8 text-xs font-mono" />
+                          <Label className="text-xs">المقاس</Label>
+                          <Select value={s.sizeId} onValueChange={(v) => {
+                             updateSize(ci, si, "sizeId", v);
+                             const selectedSize = systemSizes.find(size => size.id === v);
+                             if (selectedSize) {
+                               updateSize(ci, si, "sizeName", selectedSize.name);
+                             }
+                          }}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="اختر المقاس" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {systemSizes
+                                .filter(size => !watch("sizeTypeId") || size.sizeTypeId === watch("sizeTypeId"))
+                                .map((size) => (
+                                <SelectItem key={size.id} value={size.id}>{size.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">الاسم</Label>

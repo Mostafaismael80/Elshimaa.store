@@ -9,7 +9,6 @@ import Customers from "./pages/Customers";
 import Coupons from "./pages/Coupons";
 import Governorates from "./pages/Governorates";
 import Promotions from "./pages/Promotions";
-import Discounts from "./pages/Discounts";
 import Announcements from "./pages/Announcements";
 import Reviews from "./pages/Reviews";
 import { useAuth } from "./context/AuthContext";
@@ -32,7 +31,7 @@ function App() {
           <Route path="/orders" element={<Orders />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/promotions" element={<Promotions />} />
-          <Route path="/discounts" element={<Discounts />} />
+          <Route path="/discounts" element={<Navigate to="/promotions" replace />} />
           <Route path="/coupons" element={<Coupons />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/reviews" element={<Reviews />} />

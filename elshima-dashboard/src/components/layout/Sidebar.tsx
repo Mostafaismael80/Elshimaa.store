@@ -12,7 +12,6 @@ import {
   Store,
   Map,
   Zap,
-  Percent,
   Megaphone,
   MessageSquare,
 } from "lucide-react";
@@ -32,8 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "التصنيفات", icon: <Tags className="h-5 w-5" />, to: "/categories" },
   { label: "الطلبات", icon: <ShoppingCart className="h-5 w-5" />, to: "/orders" },
   { label: "العملاء", icon: <Users className="h-5 w-5" />, to: "/customers" },
-  { label: "محرك العروض", icon: <Zap className="h-5 w-5" />, to: "/promotions" },
-  { label: "الخصومات", icon: <Percent className="h-5 w-5" />, to: "/discounts" },
+  { label: "العروض التلقائية", icon: <Zap className="h-5 w-5" />, to: "/promotions" },
   { label: "الكوبونات", icon: <Ticket className="h-5 w-5" />, to: "/coupons" },
   { label: "الإعلانات", icon: <Megaphone className="h-5 w-5" />, to: "/announcements" },
   { label: "المراجعات", icon: <MessageSquare className="h-5 w-5" />, to: "/reviews" },

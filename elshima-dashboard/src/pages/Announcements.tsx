@@ -23,15 +23,36 @@ import type { AnnouncementResponse } from "../types";
 
 const hexRegex = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
 
-const schema = z.object({
-  text: z.string().min(1, "نص الإعلان مطلوب"),
-  backgroundColor: z.string().regex(hexRegex, "لون غير صالح (مثال: #FF5733)"),
-  redirectUrl: z.string().optional(),
-  startDate: z.string().min(1, "تاريخ البداية مطلوب"),
-  endDate: z.string().min(1, "تاريخ النهاية مطلوب"),
-  isActive: z.boolean(),
-  priority: z.coerce.number().min(0).default(0),
-});
+const COLOR_PALETTE = [
+  { label: "بني أساسي", hex: "#695434" },
+  { label: "ذهبي",      hex: "#c9aa6f" },
+  { label: "داكن",      hex: "#1a0e06" },
+  { label: "نجاح",      hex: "#16a34a" },
+  { label: "تحذير",     hex: "#ea580c" },
+  { label: "خطأ",       hex: "#dc2626" },
+  { label: "معلومة",    hex: "#2563eb" },
+];
+
+const schema = z
+  .object({
+    text: z.string().min(1, "نص الإعلان مطلوب"),
+    backgroundColor: z.string().regex(hexRegex, "لون غير صالح (مثال: #FF5733)"),
+    redirectUrl: z.string().optional(),
+    startDate: z.string().min(1, "تاريخ البداية مطلوب"),
+    endDate: z.string().min(1, "تاريخ النهاية مطلوب"),
+    isActive: z.boolean(),
+    priority: z.coerce.number().min(0).default(0),
+  })
+  .refine(
+    (data) => {
+      if (!data.startDate || !data.endDate) return true;
+      return new Date(data.endDate) >= new Date(data.startDate);
+    },
+    {
+      message: "تاريخ النهاية يجب أن يكون بعد تاريخ البداية",
+      path: ["endDate"],
+    }
+  );
 type FormValues = z.infer<typeof schema>;
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -50,9 +71,9 @@ export default function Announcements() {
     queryFn: () => announcementsApi.getAll(showInactive),
   });
 
-  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { backgroundColor: "#3B82F6", isActive: true, priority: 0 },
+    defaultValues: { backgroundColor: "#695434", isActive: true, priority: 0 },
   });
 
   // ─── Mutations (refetch immediately — backend flushes cache) ──────────────
@@ -64,7 +85,12 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ["announcements"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الإنشاء", "error"),
+    onError: (err: any) => {
+      const msgs = err?.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join(" - ")
+        : err?.response?.data?.message;
+      toast(msgs ?? "فشل الإنشاء", "error");
+    },
   });
 
   const updateMutation = useMutation({
@@ -74,7 +100,12 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ["announcements"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل التحديث", "error"),
+    onError: (err: any) => {
+      const msgs = err?.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join(" - ")
+        : err?.response?.data?.message;
+      toast(msgs ?? "فشل التحديث", "error");
+    },
   });
 
   const deleteMutation = useMutation({
@@ -91,7 +122,7 @@ export default function Announcements() {
 
   const openCreate = () => {
     setSelected(null);
-    reset({ text: "", backgroundColor: "#3B82F6", redirectUrl: "", startDate: "", endDate: "", isActive: true, priority: 0 });
+    reset({ text: "", backgroundColor: "#695434", redirectUrl: "", startDate: "", endDate: "", isActive: true, priority: 0 });
     setDialogOpen(true);
   };
 
@@ -110,7 +141,23 @@ export default function Announcements() {
   };
 
   const onSubmit = async (values: FormValues) => {
-    const payload = { ...values, redirectUrl: values.redirectUrl || undefined };
+    // Explicitly parse and stringify to standard ISO format
+    let startIso, endIso;
+    try {
+      startIso = new Date(values.startDate).toISOString();
+      endIso = new Date(values.endDate).toISOString();
+    } catch {
+      toast("تاريخ غير صالح", "error");
+      return;
+    }
+
+    const payload = { 
+      ...values, 
+      startDate: startIso,
+      endDate: endIso,
+      redirectUrl: (values.redirectUrl && values.redirectUrl.trim().length > 0) ? values.redirectUrl.trim() : null 
+    };
+
     if (selected) {
       await updateMutation.mutateAsync({ id: selected.id, data: payload });
     } else {
@@ -252,19 +299,47 @@ export default function Announcements() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>لون الخلفية (Hex)</Label>
-                <div className="flex gap-2">
-                  <Input {...register("backgroundColor")} placeholder="#FF5733" className="font-mono" />
-                  <div className="h-9 w-9 rounded border flex-shrink-0" style={{ backgroundColor: hexRegex.test(watchedBg) ? watchedBg : "#ccc" }} />
+            {/* ── Color Palette ───────────────────────────────────── */}
+            <div className="space-y-2">
+              <Label>لون الخلفية</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_PALETTE.map((c) => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    title={c.label}
+                    onClick={() => setValue("backgroundColor", c.hex)}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      watch("backgroundColor") === c.hex
+                        ? "border-gray-800 scale-110 shadow-md"
+                        : "border-transparent hover:border-gray-400"
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                ))}
+              </div>
+              {/* Custom HEX fallback */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-muted-foreground">أو أدخل HEX مخصص:</span>
+                <Input
+                  {...register("backgroundColor")}
+                  placeholder="#000000"
+                  className="h-7 w-32 text-xs font-mono"
+                  maxLength={7}
+                />
+                <div
+                  className="w-8 h-7 rounded border flex items-center justify-center text-white text-xs font-bold overflow-hidden"
+                  style={{ backgroundColor: hexRegex.test(watchedBg) ? watchedBg : "#000" }}
+                >
+                  Aa
                 </div>
-                {errors.backgroundColor && <p className="text-xs text-red-500">{errors.backgroundColor.message}</p>}
               </div>
-              <div className="space-y-2">
-                <Label>الأولوية (الأصغر = الأعلى)</Label>
-                <Input type="number" min="0" {...register("priority")} />
-              </div>
+              {errors.backgroundColor && <p className="text-xs text-red-500">{errors.backgroundColor.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label>الأولوية (الأصغر = الأعلى)</Label>
+              <Input type="number" min="0" {...register("priority")} />
             </div>
 
             <div className="space-y-2">
@@ -281,7 +356,9 @@ export default function Announcements() {
               <div className="space-y-2">
                 <Label>تاريخ النهاية</Label>
                 <Input type="datetime-local" {...register("endDate")} />
-                {errors.endDate && <p className="text-xs text-red-500">{errors.endDate.message}</p>}
+                {errors.endDate && (
+                  <p className="text-xs text-red-500">{errors.endDate.message}</p>
+                )}
               </div>
             </div>
 

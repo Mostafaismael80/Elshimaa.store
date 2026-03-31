@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
 import { promotionsApi } from "../api/promotions";
+import { productsApi } from "../api/products";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -19,40 +20,41 @@ import { useToast } from "../components/ui/toast";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/table";
 import { formatCurrency } from "../lib/utils";
 import type { PromotionResponse } from "../types";
-import { PROMOTION_TYPE_LABELS, PROMOTION_SCOPE_LABELS } from "../types";
 
-// ─── Form Options (use integers for backend, Arabic labels for UI) ──────────
-
-const TYPE_OPTIONS = [
-  { label: "نسبة مئوية", value: "0" },
-  { label: "مبلغ ثابت", value: "1" },
-  { label: "اشتري X واحصل على Y", value: "2" },
-  { label: "شحن مجاني", value: "3" },
+// ─── Business Logic Enums ────────────────────────────────────────────────────────
+const BIZ_TYPES = [
+  { label: "خصم على السلة", value: "cart_discount" },
+  { label: "خصم على جميع المنتجات", value: "sitewide_discount" },
+  { label: "اشتري X واحصل على Y", value: "buy_x_get_y" },
+  { label: "شحن مجاني", value: "free_shipping" },
 ];
 
-const SCOPE_OPTIONS = [
-  { label: "منتج", value: "0" },
-  { label: "فئة", value: "1" },
-  { label: "السلة", value: "2" },
+const DISCOUNT_TYPES = [
+  { label: "نسبة مئوية (%)", value: "0" },
+  { label: "مبلغ ثابت (ج.م)", value: "1" },
 ];
 
 const schema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
-  type: z.string(),
-  scope: z.string(),
-  value: z.coerce.number().optional(),
+  bizType: z.string().min(1, "نوع العرض مطلوب"),
+  discountType: z.string().optional(), // 0 or 1
+  value: z.coerce.number().optional().default(0),
+  minOrderValue: z.coerce.number().nullable().optional(),
   priority: z.coerce.number().default(0),
   isStackable: z.boolean().default(true),
   allowCouponStacking: z.boolean().default(true),
   productId: z.string().optional(),
-  categoryId: z.string().optional(),
-  buyQuantity: z.coerce.number().optional(),
-  getQuantity: z.coerce.number().optional(),
+  buyQuantity: z.coerce.number().optional().default(0),
+  getQuantity: z.coerce.number().optional().default(0),
   getProductId: z.string().optional(),
   startDate: z.string().min(1, "تاريخ البداية مطلوب"),
   endDate: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
-});
+}).refine((data) => {
+  if (!data.startDate || !data.endDate) return true;
+  return new Date(data.endDate) >= new Date(data.startDate);
+}, { message: "تاريخ النهاية يجب أن يكون بعد تاريخ البداية", path: ["endDate"] });
+
 type FormValues = z.infer<typeof schema>;
 
 export default function Promotions() {
@@ -63,48 +65,36 @@ export default function Promotions() {
   const [selected, setSelected] = useState<PromotionResponse | null>(null);
   const [showInactive, setShowInactive] = useState(false);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["promotions", showInactive],
-    queryFn: () => promotionsApi.getAll(showInactive),
-  });
+  const { data, isLoading } = useQuery({ queryKey: ["promotions", showInactive], queryFn: () => promotionsApi.getAll(showInactive) });
+  const { data: productsData } = useQuery({ queryKey: ["products-all"], queryFn: () => productsApi.getAll({ pageSize: 1000 }) });
+  
+  const products = productsData?.data?.items ?? [];
+  const promotions = data?.data ?? [];
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { type: "0", scope: "2", priority: 0, isStackable: true, allowCouponStacking: true, isActive: true },
+    defaultValues: { bizType: "cart_discount", discountType: "0", priority: 0, isStackable: true, allowCouponStacking: true, isActive: true },
   });
 
-  const typeVal = watch("type");
-  const scopeVal = watch("scope");
-  const isBuyXGetY = typeVal === "2";
-  const isFreeShipping = typeVal === "3";
-  const isProductScope = scopeVal === "0";
-  const isCategoryScope = scopeVal === "1";
+  const bizType = watch("bizType");
+  const isPercentOrFixed = bizType === "cart_discount" || bizType === "sitewide_discount";
+  const needsMinOrder = bizType === "cart_discount" || bizType === "free_shipping";
 
   // ─── Mutations ────────────────────────────────────────────────────────────
-
   const createMutation = useMutation({
-    mutationFn: (data: any) => promotionsApi.create({
-      ...data,
-      type: parseInt(data.type),
-      scope: parseInt(data.scope),
-    }),
+    mutationFn: (payload: any) => promotionsApi.create(payload),
     onSuccess: () => {
       toast("تم إنشاء العرض بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل إنشاء العرض", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل البناء", "error"),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      promotionsApi.update(id, {
-        ...data,
-        type: parseInt(data.type),
-        scope: parseInt(data.scope),
-      }),
+    mutationFn: ({ id, data }: { id: string; data: any }) => promotionsApi.update(id, data),
     onSuccess: () => {
-      toast("تم تحديث العرض بنجاح", "success");
+      toast("تم التحديث بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       setDialogOpen(false);
     },
@@ -114,324 +104,241 @@ export default function Promotions() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => promotionsApi.delete(id),
     onSuccess: () => {
-      toast("تم حذف العرض بنجاح", "success");
+      toast("تم الحذف بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       setDeleteDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الحذف", "error"),
   });
 
-  // ─── Dialog openers ───────────────────────────────────────────────────────
+  // ─── Transformer ────────────────────────────────────────────────────────────
+  const mapUiToApi = (vals: FormValues) => {
+    let type = 0, scope = 0;
+    if (vals.bizType === "cart_discount") {
+      type = parseInt(vals.discountType || "0"); scope = 2; // Cart
+    } else if (vals.bizType === "sitewide_discount") {
+      type = parseInt(vals.discountType || "0"); scope = 3; // AllProducts
+    } else if (vals.bizType === "free_shipping") {
+      type = 3; scope = 2; // Cart FreeShipping
+    } else if (vals.bizType === "buy_x_get_y") {
+      type = 2; scope = 0; // Product
+    }
 
-  const openCreate = () => {
-    setSelected(null);
-    reset({
-      name: "", type: "0", scope: "2", value: 0, priority: 0,
-      isStackable: true, allowCouponStacking: true, isActive: true,
-      productId: "", categoryId: "", buyQuantity: 0, getQuantity: 0,
-      getProductId: "", startDate: "", endDate: "",
-    });
-    setDialogOpen(true);
+    return {
+      name: vals.name, type, scope, value: isPercentOrFixed ? vals.value : 0,
+      priority: vals.priority, isStackable: vals.isStackable, allowCouponStacking: vals.allowCouponStacking,
+      minOrderValue: needsMinOrder && vals.minOrderValue && vals.minOrderValue > 0 ? vals.minOrderValue : null,
+      productId: vals.bizType === "buy_x_get_y" && vals.productId !== "none" ? vals.productId : null,
+      buyQuantity: vals.bizType === "buy_x_get_y" ? vals.buyQuantity : null,
+      getQuantity: vals.bizType === "buy_x_get_y" ? vals.getQuantity : null,
+      getProductId: vals.bizType === "buy_x_get_y" && vals.getProductId && vals.getProductId !== "none" ? vals.getProductId : null,
+      startDate: vals.startDate, endDate: vals.endDate || null, isActive: vals.isActive
+    };
   };
 
-  // Map backend string → form integer string
-  const typeToInt: Record<string, string> = { Percentage: "0", Fixed: "1", BuyXGetY: "2", FreeShipping: "3" };
-  const scopeToInt: Record<string, string> = { Product: "0", Category: "1", Cart: "2" };
+  const mapApiToUi = (p: PromotionResponse): FormValues => {
+    let biz = "cart_discount";
+    if (p.type === "FreeShipping") biz = "free_shipping";
+    else if (p.type === "BuyXGetY") biz = "buy_x_get_y";
+    else if (p.scope === "AllProducts") biz = "sitewide_discount";
 
-  const openEdit = (p: PromotionResponse) => {
-    setSelected(p);
-    reset({
-      name: p.name,
-      type: typeToInt[p.type] ?? "0",
-      scope: scopeToInt[p.scope] ?? "2",
-      value: p.value ?? 0,
-      priority: p.priority,
-      isStackable: p.isStackable,
-      allowCouponStacking: p.allowCouponStacking,
-      productId: p.productId ?? "",
-      categoryId: p.categoryId ?? "",
-      buyQuantity: p.buyQuantity ?? 0,
-      getQuantity: p.getQuantity ?? 0,
-      getProductId: p.getProductId ?? "",
-      startDate: p.startDate?.slice(0, 16),
-      endDate: p.endDate ? p.endDate.slice(0, 16) : "",
-      isActive: p.isActive,
-    });
-    setDialogOpen(true);
+    return {
+      name: p.name, bizType: biz, discountType: p.type === "Fixed" ? "1" : "0", value: p.value || 0,
+      minOrderValue: p.minOrderValue, priority: p.priority, isStackable: p.isStackable, allowCouponStacking: p.allowCouponStacking,
+      productId: p.productId || "none", buyQuantity: p.buyQuantity || 0, getQuantity: p.getQuantity || 0, getProductId: p.getProductId || "none",
+      startDate: p.startDate?.slice(0, 16), endDate: p.endDate ? p.endDate.slice(0, 16) : "", isActive: p.isActive
+    };
   };
 
   const onSubmit = async (values: FormValues) => {
-    const payload = { ...values };
-    if (isFreeShipping) { payload.value = 0; payload.buyQuantity = 0; payload.getQuantity = 0; }
-    if (!isBuyXGetY) { payload.buyQuantity = 0; payload.getQuantity = 0; payload.getProductId = ""; }
-    if (!isProductScope) payload.productId = "";
-    if (!isCategoryScope) payload.categoryId = "";
-
-    if (selected) {
-      await updateMutation.mutateAsync({ id: selected.id, data: payload });
-    } else {
-      await createMutation.mutateAsync(payload);
-    }
+    const payload = mapUiToApi(values);
+    if (selected) await updateMutation.mutateAsync({ id: selected.id, data: payload });
+    else await createMutation.mutateAsync(payload);
   };
 
-  const promotions = data?.data ?? [];
+  const openCreate = () => {
+    setSelected(null);
+    reset({ name: "", bizType: "cart_discount", discountType: "0", value: 0, minOrderValue: null, priority: 0, isStackable: true, allowCouponStacking: true, isActive: true, productId: "none", getProductId: "none", buyQuantity: 1, getQuantity: 1, startDate: "", endDate: "" });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (p: PromotionResponse) => { setSelected(p); reset(mapApiToUi(p)); setDialogOpen(true); };
 
   const getStatus = (p: PromotionResponse) => {
     if (!p.isActive) return "غير نشط";
-    const now = new Date();
-    const start = new Date(p.startDate);
-    const end = p.endDate ? new Date(p.endDate) : null;
-    if (now < start) return "مجدول";
-    if (end && now > end) return "منتهي";
-    return "نشط";
+    const now = new Date(), start = new Date(p.startDate), end = p.endDate ? new Date(p.endDate) : null;
+    return now < start ? "مجدول" : end && now > end ? "منتهي" : "نشط";
   };
 
-  const filteredPromotions = promotions.filter(p => {
-    if (showInactive) return true;
-    return getStatus(p) === "نشط";
-  });
-
-  const formatPromotionValue = (p: PromotionResponse) => {
-    switch (p.type) {
-      case "Percentage": return `${p.value}%`;
-      case "Fixed": return formatCurrency(p.value ?? 0);
-      case "BuyXGetY": return `اشتري ${p.buyQuantity} وخد ${p.getQuantity}`;
-      case "FreeShipping": return "مجاناً";
-      default: return "—";
-    }
-  };
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const filteredPromotions = promotions.filter(p => showInactive || getStatus(p) === "نشط");
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">محرك العروض (Promotions)</h2>
-          <p className="text-muted-foreground text-sm mt-1">{filteredPromotions.length} عرض نشط بالسلة</p>
+          <h2 className="text-2xl font-bold text-gray-900">العروض التلقائية</h2>
+          <p className="text-muted-foreground text-sm mt-1">{filteredPromotions.length} عرض نشط</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            عرض غير النشطة أو المنتهية
-          </label>
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="h-4 w-4" /> إضافة عرض تلقائي
-          </Button>
+          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />عرض المعطل أو المنتهي</label>
+          <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> إضافة عرض جديد</Button>
         </div>
       </div>
 
       {isLoading ? <LoadingPage /> : filteredPromotions.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            <Zap className="h-12 w-12 mx-auto mb-3 opacity-30 text-yellow-500" />
-            <p>لا توجد عروض تلقائية مبرمجة</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-16 text-center text-muted-foreground"><Zap className="h-12 w-12 mx-auto mb-3 opacity-30 text-yellow-500" /><p>لا توجد عروض تلقائية مبرمجة</p></CardContent></Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-right w-1/5">الاسم</TableHead>
-                <TableHead className="text-right">النوع</TableHead>
-                <TableHead className="text-right">النطاق</TableHead>
-                <TableHead className="text-right">القيمة</TableHead>
-                <TableHead className="text-right">الأولوية</TableHead>
-                <TableHead className="text-right">تتراكم؟</TableHead>
-                <TableHead className="text-right">البداية</TableHead>
-                <TableHead className="text-right">النهاية</TableHead>
-                <TableHead className="text-right">الحالة</TableHead>
-                <TableHead className="text-left w-24">الإجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPromotions.map((p) => {
-                const status = getStatus(p);
-                let badgeVariant: "success" | "secondary" | "destructive" | "default" = "secondary";
-                if (status === "نشط") badgeVariant = "success";
-                if (status === "مجدول") badgeVariant = "default";
-                if (status === "منتهي") badgeVariant = "destructive";
-
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-right font-medium min-w-[200px] whitespace-normal leading-relaxed">
-                      {p.name}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {PROMOTION_TYPE_LABELS[p.type] ?? p.type}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {PROMOTION_SCOPE_LABELS[p.scope] ?? p.scope}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-blue-600 whitespace-nowrap">
-                      {formatPromotionValue(p)}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">{p.priority}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <div className="flex flex-col gap-1 text-xs">
-                        {p.isStackable ? <span className="text-green-600">القوائم: نعم</span> : <span className="text-red-500">القوائم: لا</span>}
-                        {p.allowCouponStacking ? <span className="text-green-600">الكوبون: نعم</span> : <span className="text-red-500">الكوبون: لا</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right text-xs whitespace-nowrap">{new Date(p.startDate).toLocaleDateString("en-GB")}</TableCell>
-                    <TableCell className="text-right text-xs whitespace-nowrap">{p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "مفتوح"}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Badge variant={badgeVariant}>{status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-left whitespace-nowrap">
-                      <div className="flex justify-end items-center gap-2">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => { setSelected(p); setDeleteDialogOpen(true); }}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+          <div className="max-h-[70vh] overflow-y-auto w-full overflow-x-auto rounded-lg">
+            <div className="min-w-[900px]">
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-white">
+                  <TableRow>
+                    <TableHead className="text-right">الاسم</TableHead>
+                    <TableHead className="text-right">نوع العرض</TableHead>
+                    <TableHead className="text-right">تفاصيل</TableHead>
+                    <TableHead className="text-right">الحد الأدنى للطلب</TableHead>
+                    <TableHead className="text-right">البداية / النهاية</TableHead>
+                    <TableHead className="text-right">الحالة</TableHead>
+                    <TableHead className="text-left w-24">الإجراءات</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredPromotions.map((p) => {
+                    const status = getStatus(p);
+                    const bizName = p.type === "FreeShipping" ? "شحن مجاني" : p.type === "BuyXGetY" ? "اشتري و احصل على" : p.scope === "AllProducts" ? "خصم على جميع المنتجات" : "خصم على السلة";
+                    const valText = p.type === "Percentage" ? `${p.value}%` : p.type === "Fixed" ? formatCurrency(p.value) : p.type === "BuyXGetY" ? `اشتري ${p.buyQuantity} وخذ ${p.getQuantity}` : "مجاناً";
+                    return (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-right font-medium">{p.name}</TableCell>
+                        <TableCell className="text-right">{bizName}</TableCell>
+                        <TableCell className="text-right font-semibold text-blue-600">{valText}</TableCell>
+                        <TableCell className="text-right">{p.minOrderValue ? formatCurrency(p.minOrderValue) : "—"}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          <div className="flex flex-col gap-1">
+                            <span>من: {new Date(p.startDate).toLocaleDateString("en-GB")}</span>
+                            <span className="text-muted-foreground">إلى: {p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "مفتوح"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={status === "نشط" ? "success" : status === "مجدول" ? "default" : status === "منتهي" ? "destructive" : "secondary"}>{status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-left">
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500" onClick={() => { setSelected(p); setDeleteDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </Card>
       )}
 
-      {/* Create/Edit Dialog */}
+      {/* Editor Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{selected ? "تعديل عرض" : "إضافة عرض تلقائي جديد للمحرك"}</DialogTitle>
-            <DialogDescription>هذا العرض سيُطبق أوتوماتيكياً في سلة مشتريات العميل.</DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{selected ? "تعديل عرض" : "إضافة عرض جديد"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label>اسم العرض (يظهر للعميل كرسالة توفير)</Label>
-              <Input {...register("name")} placeholder="مثال: خصم الصيف 10%" />
+              <Label>اسم العرض (يظهر للعميل)</Label>
+              <Input {...register("name")} />
               {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4 border p-3 bg-gray-50/50 rounded-lg">
-              <div className="space-y-2">
-                <Label>نوع العرض</Label>
-                <Select value={watch("type")} onValueChange={(v) => setValue("type", v)}>
+              <div className="space-y-2 col-span-2">
+                <Label>النوع والتطبيق</Label>
+                <Select value={watch("bizType")} onValueChange={(v) => setValue("bizType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TYPE_OPTIONS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{BIZ_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>نطاق التطبيق</Label>
-                <Select value={watch("scope")} onValueChange={(v) => setValue("scope", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SCOPE_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {isPercentOrFixed && (
+                <>
+                  <div className="space-y-2">
+                    <Label>طريقة الخصم</Label>
+                    <Select value={watch("discountType")} onValueChange={(v) => setValue("discountType", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{DISCOUNT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>القيمة {watch("discountType") === "0" ? "(%)" : "(ج.م)"}</Label>
+                    <Input type="number" step="0.01" {...register("value")} />
+                  </div>
+                </>
+              )}
 
-              {!isFreeShipping && !isBuyXGetY && (
-                <div className="space-y-2">
-                  <Label>القيمة {watch("type") === "0" ? "(%)" : "(ج.م)"}</Label>
-                  <Input type="number" step="0.01" {...register("value")} />
+              {needsMinOrder && (
+                <div className="space-y-2 col-span-2">
+                  <Label>الحد الأدنى للطلب (للتفعيل - اختياري)</Label>
+                  <Input type="number" step="0.01" {...register("minOrderValue")} placeholder="مثال: 500" />
                 </div>
               )}
 
-              {isBuyXGetY && (
+              {bizType === "buy_x_get_y" && (
                 <>
+                  <div className="space-y-2 col-span-2">
+                    <Label>المنتج المطلوب (الذي يجب شراؤه)</Label>
+                    <Select value={watch("productId")} onValueChange={(v) => setValue("productId", v)}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">يرجى الاختيار...</SelectItem>
+                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nameAr}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
-                    <Label>اشتري قطعة (كمية)</Label>
+                    <Label>اشتري كمية</Label>
                     <Input type="number" min="1" {...register("buyQuantity")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>احصل على (كمية مجانية)</Label>
+                    <Label>واحصل على كمية</Label>
                     <Input type="number" min="1" {...register("getQuantity")} />
                   </div>
                   <div className="space-y-2 col-span-2">
-                    <Label>معرّف منتج الهدية (اختياري)</Label>
-                    <Input {...register("getProductId")} placeholder="UUID المنتج المجاني" className="font-mono text-xs" />
+                    <Label>المنتج المجاني (اختياري - افتراضياً نفس المنتج)</Label>
+                    <Select value={watch("getProductId")} onValueChange={(v) => setValue("getProductId", v)}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">نفس المنتج المطلوب</SelectItem>
+                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nameAr}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
             </div>
 
-            {/* Scope-conditional fields */}
-            {isProductScope && (
-              <div className="space-y-2">
-                <Label>معرّف المنتج (UUID)</Label>
-                <Input {...register("productId")} placeholder="UUID المنتج" className="font-mono text-xs" />
-              </div>
-            )}
-
-            {isCategoryScope && (
-              <div className="space-y-2">
-                <Label>معرّف الفئة (UUID)</Label>
-                <Input {...register("categoryId")} placeholder="UUID الفئة" className="font-mono text-xs" />
-              </div>
-            )}
-
             <div className="grid grid-cols-3 gap-4 border p-3 rounded-lg">
-              <div className="space-y-2">
-                <Label>الأولوية (الأكبر أولاً)</Label>
-                <Input type="number" {...register("priority")} />
-              </div>
-              <div className="space-y-2 pt-6">
-                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                  <input type="checkbox" {...register("isStackable")} className="rounded" />
-                  قابل للدمج مع عروض أخرى؟
-                </label>
-              </div>
-              <div className="space-y-2 pt-6">
-                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                  <input type="checkbox" {...register("allowCouponStacking")} className="rounded" />
-                  يسمح بإضافة كوبون معه؟
-                </label>
-              </div>
+              <div className="space-y-2"><Label>ترتيب الأولوية</Label><Input type="number" {...register("priority")} /></div>
+              <div className="space-y-2 pt-6"><label className="flex items-center gap-2 text-xs"><input type="checkbox" {...register("allowCouponStacking")} />يسمح بكوبون؟</label></div>
+              <div className="space-y-2 pt-6"><label className="flex items-center gap-2 text-xs"><input type="checkbox" {...register("isActive")} />تفعيل حالياً</label></div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>تاريخ البداية</Label>
-                <Input type="datetime-local" {...register("startDate")} />
-                {errors.startDate && <p className="text-xs text-red-500">{errors.startDate.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>تاريخ النهاية (اختياري)</Label>
-                <Input type="datetime-local" {...register("endDate")} />
-              </div>
+              <div className="space-y-2"><Label>من تاريخ</Label><Input type="datetime-local" {...register("startDate")} /></div>
+              <div className="space-y-2"><Label>إلى تاريخ</Label><Input type="datetime-local" {...register("endDate")} /></div>
             </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" {...register("isActive")} className="rounded" />
-              تفعيل العرض
-            </label>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Spinner size="sm" className="ml-2" /> : null}
-                {selected ? "تحديث العرض" : "حفظ العرض"}
-              </Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Spinner className="ml-2" /> : null}حفظ العرض</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>إلغاء تنشيط / حذف العرض</DialogTitle>
-            <DialogDescription>هل أنت متأكد من حذف عرض "{selected?.name}"؟ سيؤدي ذلك لإيقافه فوراً بجميع السلات.</DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>حذف العرض</DialogTitle><DialogDescription>تأكيد الحذف النهائي؟</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>تراجع</Button>
-            <Button variant="destructive" disabled={deleteMutation.isPending}
-              onClick={() => selected && deleteMutation.mutate(selected.id)}>
-              {deleteMutation.isPending ? <Spinner size="sm" className="ml-2" /> : null}
-              نعم، حذف
-            </Button>
+            <Button variant="destructive" onClick={() => selected && deleteMutation.mutate(selected.id)}>تأكيد</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

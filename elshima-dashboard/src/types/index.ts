@@ -66,6 +66,12 @@ export interface CategoryResponse {
   isActive: boolean;
   productCount: number;
   subCategories: CategoryResponse[];
+  // Discount fields (may be absent on old API responses — use ?? for safety)
+  isDiscountActive?: boolean;
+  discountType?: 'Percentage' | 'FixedAmount' | null;
+  discountValue?: number | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
 }
 
 export interface CreateCategoryRequest {
@@ -188,15 +194,17 @@ export interface CreateColorImageDto {
 
 export interface CreateVariantDto {
   sizeId: string;
+  sizeName: string;
   availableQuantity: number;
   priceOverride?: number | null;
 }
 
 export interface CreateColorDto {
-  colorId: string;
+  colorId?: string;       // undefined/omit for new colors, ProductColor.Id for existing
+  colorName: string;
   isDefault: boolean;
-  images: CreateColorImageDto[];
-  variants: CreateVariantDto[];
+  images: { imageUrl: string; displayOrder: number; isMain: boolean; altText?: string }[];
+  sizes: { sizeId?: string; sizeName: string; availableQuantity: number; priceOverride?: number | null }[];
 }
 
 export interface CreateDisplayImageDto {
@@ -475,8 +483,9 @@ export interface UpdateShippingCostRequest {
 export interface CreatePromotionRequest {
   name: string;
   type: number;           // 0=Percentage, 1=Fixed, 2=BuyXGetY, 3=FreeShipping
-  scope: number;          // 0=Product, 1=Category, 2=Cart
+  scope: number;          // 0=Product, 1=Category, 2=Cart, 3=AllProducts
   value: number;          // ≥ 0 (ignored for FreeShipping)
+  minOrderValue?: number | null;
   startDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;
@@ -497,8 +506,9 @@ export interface PromotionResponse {
   id: string;
   name: string;
   type: string;           // "Percentage" | "Fixed" | "BuyXGetY" | "FreeShipping"
-  scope: string;          // "Product" | "Category" | "Cart"
+  scope: string;          // "Product" | "Category" | "Cart" | "AllProducts"
   value: number;
+  minOrderValue: number | null;
   startDate: string;
   endDate: string | null;
   isActive: boolean;
@@ -526,6 +536,7 @@ export const PROMOTION_SCOPE_LABELS: Record<string, string> = {
   Product: 'منتج',
   Category: 'فئة',
   Cart: 'السلة',
+  AllProducts: 'جميع المنتجات',
 };
 
 // ─── Announcements ────────────────────────────────────────────────────────────
