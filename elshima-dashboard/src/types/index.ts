@@ -566,7 +566,7 @@ export interface CreateAnnouncementRequest {
 
 export type UpdateAnnouncementRequest = CreateAnnouncementRequest;
 
-// ─── Reviews (Admin image management) ─────────────────────────────────────────
+// ─── Reviews ──────────────────────────────────────────────────────────────────
 
 export interface ReviewImageResponse {
   id: string;
@@ -574,16 +574,34 @@ export interface ReviewImageResponse {
   displayOrder: number;
 }
 
+/** Full review response from both admin and public endpoints */
 export interface ReviewResponse {
   id: string;
   productId: string;
-  productName: string;
-  customerName: string;
+  productName: string;         // Correction 2 — explicit
+  productImage: string | null; // Correction 2 — explicit (used by featured carousel)
+  authorName: string;          // Correction 1 — backend contract field name
   rating: number;
   comment: string | null;
+  isFeatured: boolean;
   images: ReviewImageResponse[];
   createdAt: string;
 }
+
+/** Alias for detail endpoint (same shape, explicit for code clarity) */
+export type ReviewDetailsResponse = ReviewResponse;
+
+/** POST /api/admin/reviews */
+export interface CreateReviewRequest {
+  productId: string;
+  authorName: string;  // Correction 1
+  rating: number;      // 1–5
+  comment?: string;
+  isFeatured: boolean;
+}
+
+/** PUT /api/admin/reviews/{id} */
+export type UpdateReviewRequest = CreateReviewRequest;
 
 export interface ReorderReviewImagesRequest {
   items: { imageId: string; displayOrder: number }[];

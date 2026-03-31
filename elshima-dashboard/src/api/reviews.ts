@@ -2,26 +2,53 @@ import { apiClient } from "./client";
 import type {
   ApiResponse,
   ReviewResponse,
+  CreateReviewRequest,
+  UpdateReviewRequest,
   ReorderReviewImagesRequest,
   ReviewImageResponse,
   PaginatedResponse,
 } from "../types";
 
-// Review visibility/deletion depends on backend-supported endpoints.
-// This module only covers image management (upload, delete, reorder).
+// ─── Admin Reviews CRUD ────────────────────────────────────────────────────────
 
 export const reviewsApi = {
-  /** GET /api/reviews — paginated list (public endpoint, no admin filter) */
+  /** GET /api/admin/reviews — paginated list with full product + author context */
   getAll: async (params: {
     pageNumber?: number;
     pageSize?: number;
     productId?: string;
   } = {}): Promise<ApiResponse<PaginatedResponse<ReviewResponse>>> => {
-    const res = await apiClient.get<ApiResponse<PaginatedResponse<ReviewResponse>>>("/reviews", {
+    const res = await apiClient.get<ApiResponse<PaginatedResponse<ReviewResponse>>>("/admin/reviews", {
       params,
     });
     return res.data;
   },
+
+  /** GET /api/admin/reviews/{id} */
+  getById: async (id: string): Promise<ApiResponse<ReviewResponse>> => {
+    const res = await apiClient.get<ApiResponse<ReviewResponse>>(`/admin/reviews/${id}`);
+    return res.data;
+  },
+
+  /** POST /api/admin/reviews */
+  create: async (data: CreateReviewRequest): Promise<ApiResponse<ReviewResponse>> => {
+    const res = await apiClient.post<ApiResponse<ReviewResponse>>("/admin/reviews", data);
+    return res.data;
+  },
+
+  /** PUT /api/admin/reviews/{id} */
+  update: async (id: string, data: UpdateReviewRequest): Promise<ApiResponse<ReviewResponse>> => {
+    const res = await apiClient.put<ApiResponse<ReviewResponse>>(`/admin/reviews/${id}`, data);
+    return res.data;
+  },
+
+  /** DELETE /api/admin/reviews/{id} — also removes all linked images from server */
+  delete: async (id: string): Promise<ApiResponse<null>> => {
+    const res = await apiClient.delete<ApiResponse<null>>(`/admin/reviews/${id}`);
+    return res.data;
+  },
+
+  // ─── Image Management (preserved verbatim — Correction 8) ─────────────────
 
   /** POST /api/admin/reviews/{reviewId}/images — single file upload */
   uploadImage: async (reviewId: string, file: File): Promise<ApiResponse<ReviewImageResponse>> => {
