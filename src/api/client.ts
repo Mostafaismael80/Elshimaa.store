@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { ApiResponse, AuthResponse } from '../types';
 
-export const BASE_URL = 'https://elshimaa-1.runasp.net';
+export const BASE_URL = 'https://api.el-shimaa-store.com';
 const API_BASE = `${BASE_URL}/api`;
 
 export const apiClient = axios.create({
