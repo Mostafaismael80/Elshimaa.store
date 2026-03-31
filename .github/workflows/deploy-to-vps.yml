@@ -32,7 +32,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "build/*"
+          source: "build"
           target: "/var/www/elshimaa/admin"
 
       - name: Run post-deploy commands on VPS (set permissions)
