@@ -29,6 +29,8 @@ jobs:
           CI: false
           ESLINT_NO_DEV_ERRORS: true
 
+      # rm: true = full replace of build dir (removes stale folders like elshima-dashboard/dist).
+      # strip_components: 2 = drop elshima-dashboard/dist prefix so files land in build/, not nested.
       - name: Deploy build folder to VPS
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -37,6 +39,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "elshima-dashboard/dist/*"
           target: "/var/www/elshimaa/admin/build"
+          rm: true
+          strip_components: 2
+          overwrite: true
 
       - name: Run post-deploy commands on VPS (set permissions)
         uses: appleboy/ssh-action@v1.0.0
