@@ -618,18 +618,18 @@ export default function Products() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="البحث في المنتجات..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pr-10 pl-3"
+            className="pr-10 pl-3 w-full"
           />
         </div>
         <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setPage(1); }}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="الفئة" />
           </SelectTrigger>
           <SelectContent>
@@ -640,7 +640,7 @@ export default function Products() {
           </SelectContent>
         </Select>
         <Select value={filterActive} onValueChange={(v) => { setFilterActive(v); setPage(1); }}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-full sm:w-36">
             <SelectValue placeholder="الحالة" />
           </SelectTrigger>
           <SelectContent>

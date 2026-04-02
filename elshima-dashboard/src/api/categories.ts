@@ -3,7 +3,6 @@ import type {
   ApiResponse,
   CategoryResponse,
   CreateCategoryRequest,
-  UpdateCategoryRequest,
 } from '../types';
 
 type CategoryListResponse = ApiResponse<CategoryResponse[]>;
@@ -40,8 +39,10 @@ export const categoriesApi = {
   },
 
   /** PUT /api/categories/{id} */
-  update(id: string, data: UpdateCategoryRequest): Promise<CategoryDetailResponse> {
-    return apiClient.put(`/categories/${id}`, data).then((r) => r.data);
+  update(id: string, data: FormData): Promise<CategoryDetailResponse> {
+    return apiClient.put(`/categories/${id}`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
   },
 
   /** DELETE /api/categories/{id} — soft delete */

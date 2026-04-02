@@ -147,49 +147,80 @@ export default function Customers() {
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-right">العميل</TableHead>
-                <TableHead className="text-right">الهاتف</TableHead>
-                <TableHead className="text-right">المحافظة</TableHead>
-                <TableHead className="text-right">إجمالي الطلبات</TableHead>
-                <TableHead className="text-right">إجمالي الإنفاق</TableHead>
-                <TableHead className="text-right">أول طلب</TableHead>
-                <TableHead className="text-right">آخر طلب</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paged.map((customer) => (
-                <TableRow key={customer.email || customer.phone}>
-                  <TableCell className="text-right">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-semibold shrink-0">
-                        {customer.name?.[0]?.toUpperCase() ?? "?"}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{customer.name}</p>
-                        <p className="text-xs text-muted-foreground">{customer.email || "—"}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="h-3 w-3 text-muted-foreground" />
-                      {customer.phone || "—"}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-muted-foreground">{customer.governorate || "—"}</TableCell>
-                  <TableCell className="text-right font-semibold">{customer.totalOrders}</TableCell>
-                  <TableCell className="text-right font-semibold text-green-700">
-                    {formatCurrency(customer.totalSpent)}
-                  </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.firstOrder)}</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.lastOrder)}</TableCell>
+          {/* Mobile card-list: hidden on sm+ */}
+          <div className="sm:hidden divide-y">
+            {paged.map((customer) => (
+              <div key={customer.email || customer.phone} className="p-4 space-y-2">
+                {/* Row 1: avatar + name/email */}
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-semibold shrink-0">
+                    {customer.name?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{customer.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{customer.email || "—"}</p>
+                  </div>
+                </div>
+                {/* Row 2: phone + governorate */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground text-xs">{customer.phone || "—"}</span>
+                  <span className="text-xs text-muted-foreground">{customer.governorate || "—"}</span>
+                </div>
+                {/* Row 3: orders + spend */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">طلبات: <strong>{customer.totalOrders}</strong></span>
+                  <span className="font-semibold text-sm text-green-700">{formatCurrency(customer.totalSpent)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table: hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">العميل</TableHead>
+                  <TableHead className="text-right">الهاتف</TableHead>
+                  <TableHead className="text-right">المحافظة</TableHead>
+                  <TableHead className="text-right">إجمالي الطلبات</TableHead>
+                  <TableHead className="text-right">إجمالي الإنفاق</TableHead>
+                  <TableHead className="text-right">أول طلب</TableHead>
+                  <TableHead className="text-right">آخر طلب</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paged.map((customer) => (
+                  <TableRow key={customer.email || customer.phone}>
+                    <TableCell className="text-right">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-semibold shrink-0">
+                          {customer.name?.[0]?.toUpperCase() ?? "?"}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{customer.name}</p>
+                          <p className="text-xs text-muted-foreground">{customer.email || "—"}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3 w-3 text-muted-foreground" />
+                        {customer.phone || "—"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{customer.governorate || "—"}</TableCell>
+                    <TableCell className="text-right font-semibold">{customer.totalOrders}</TableCell>
+                    <TableCell className="text-right font-semibold text-green-700">
+                      {formatCurrency(customer.totalSpent)}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.firstOrder)}</TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">{formatDate(customer.lastOrder)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
 

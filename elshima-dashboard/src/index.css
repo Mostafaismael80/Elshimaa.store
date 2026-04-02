@@ -24,15 +24,62 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    /* Bottom nav height for safe-area padding */
+    --bottom-nav-height: 4rem;
   }
 
-  * {
-    @apply border-border;
+  /* ── Mobile-first global resets ───────────────────────────────────── */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
+    overflow-x: hidden;
+    min-width: 320px;
     @apply bg-background text-foreground;
     font-family: 'Cairo', 'Tahoma', 'Arial', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  img,
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Minimum readable font size */
+  * {
+    @apply border-border;
+    font-size: max(0.875rem, inherit);
+  }
+
+  /* Reset font-size escalation for utility-classed elements */
+  .text-xs  { font-size: 0.75rem !important; }
+  .text-sm  { font-size: 0.875rem !important; }
+  .text-base { font-size: 1rem !important; }
+  .text-lg  { font-size: 1.125rem !important; }
+  .text-xl  { font-size: 1.25rem !important; }
+  .text-2xl { font-size: 1.5rem !important; }
+  .text-3xl { font-size: 1.875rem !important; }
+}
+
+@layer utilities {
+  /* Ensure minimum tap target size */
+  .tap-target {
+    min-height: 2.75rem; /* 44px */
+    min-width: 2.75rem;
+  }
+
+  /* Safe bottom padding for devices with home indicator */
+  .pb-safe {
+    padding-bottom: max(var(--bottom-nav-height), env(safe-area-inset-bottom));
   }
 }

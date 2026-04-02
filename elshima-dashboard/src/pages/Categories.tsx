@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, FolderTree, Image, Tag } from "lucide-react";
 import { categoriesApi } from "../api/categories";
-import { imagesApi } from "../api/images";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -78,7 +77,7 @@ export default function Categories() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => categoriesApi.update(id, data),
+    mutationFn: ({ id, fd }: { id: string; fd: FormData }) => categoriesApi.update(id, fd),
     onSuccess: () => {
       toast("تم تحديث الفئة بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -134,45 +133,28 @@ export default function Categories() {
 
   const onSubmit = async (values: CategoryForm) => {
     try {
-      if (selectedCategory) {
-        let uploadedImageUrl = undefined;
-        if (imageFile) {
-          uploadedImageUrl = await imagesApi.uploadImage(imageFile);
-        }
+      const fd = new FormData();
+      fd.append("nameAr", values.nameAr);
+      if (values.descriptionAr) fd.append("descriptionAr", values.descriptionAr);
+      if (values.parentCategoryId) fd.append("parentCategoryId", values.parentCategoryId);
+      fd.append("displayOrder", String(values.displayOrder));
+      fd.append("isActive", String(values.isActive));
+      
+      if (imageFile) fd.append("image", imageFile);
 
-        await updateMutation.mutateAsync({
-          id: selectedCategory.id,
-          data: {
-            nameAr: values.nameAr,
-            descriptionAr: values.descriptionAr,
-            parentCategoryId: values.parentCategoryId,
-            displayOrder: values.displayOrder,
-            isActive: values.isActive,
-            ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
-            isDiscountActive: values.isDiscountActive,
-            discountType: values.isDiscountActive ? values.discountType : null,
-            discountValue: values.isDiscountActive ? values.discountValue : null,
-            discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
-            discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
-          },
-        });
+      if (values.isDiscountActive) {
+        fd.append("isDiscountActive", "true");
+        fd.append("discountType", String(values.discountType ?? 0));
+        fd.append("discountValue", String(values.discountValue ?? 0));
+        if (values.discountStartDate) fd.append("discountStartDate", values.discountStartDate);
+        if (values.discountEndDate) fd.append("discountEndDate", values.discountEndDate);
       } else {
-        const fd = new FormData();
-        fd.append("nameAr", values.nameAr);
-        if (values.descriptionAr) fd.append("descriptionAr", values.descriptionAr);
-        if (values.parentCategoryId) fd.append("parentCategoryId", values.parentCategoryId);
-        fd.append("displayOrder", String(values.displayOrder));
-        fd.append("isActive", String(values.isActive));
-        if (imageFile) fd.append("image", imageFile);
+        fd.append("isDiscountActive", "false");
+      }
 
-        if (values.isDiscountActive) {
-          fd.append("isDiscountActive", "true");
-          fd.append("discountType", String(values.discountType ?? 0));
-          fd.append("discountValue", String(values.discountValue ?? 0));
-          if (values.discountStartDate) fd.append("discountStartDate", values.discountStartDate);
-          if (values.discountEndDate) fd.append("discountEndDate", values.discountEndDate);
-        }
-
+      if (selectedCategory) {
+        await updateMutation.mutateAsync({ id: selectedCategory.id, fd });
+      } else {
         await createMutation.mutateAsync(fd);
       }
     } catch (error: any) {

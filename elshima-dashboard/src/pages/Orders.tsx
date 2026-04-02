@@ -156,19 +156,19 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      {/* Filters — primary row */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="البحث برقم الطلب أو الاسم..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pr-9"
+            className="pr-9 w-full"
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="الحالة" />
           </SelectTrigger>
           <SelectContent>
@@ -185,20 +185,20 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Advanced Filters */}
-      <div className="flex gap-3 flex-wrap items-end">
+      {/* Advanced Filters — stack vertically on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="space-y-1">
           <Label className="text-xs">من تاريخ</Label>
-          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-36 h-9" />
+          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-full sm:w-36 h-9" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">إلى تاريخ</Label>
-          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-36 h-9" />
+          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-full sm:w-36 h-9" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">حالة الدفع</Label>
           <Select value={paymentStatusFilter} onValueChange={(v) => { setPaymentStatusFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-36 h-9">
+            <SelectTrigger className="w-full sm:w-36 h-9">
               <SelectValue placeholder="الكل" />
             </SelectTrigger>
             <SelectContent>
@@ -213,7 +213,7 @@ export default function Orders() {
         <div className="space-y-1">
           <Label className="text-xs">طريقة الدفع</Label>
           <Select value={paymentMethodFilter} onValueChange={(v) => { setPaymentMethodFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-36 h-9">
+            <SelectTrigger className="w-full sm:w-36 h-9">
               <SelectValue placeholder="الكل" />
             </SelectTrigger>
             <SelectContent>
@@ -224,7 +224,7 @@ export default function Orders() {
           </Select>
         </div>
         {(fromDate || toDate || paymentStatusFilter !== "all" || paymentMethodFilter !== "all") && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFromDate(""); setToDate(""); setPaymentStatusFilter("all"); setPaymentMethodFilter("all"); setPage(1); }}>
+          <Button variant="ghost" size="sm" className="h-9 text-xs tap-target" onClick={() => { setFromDate(""); setToDate(""); setPaymentStatusFilter("all"); setPaymentMethodFilter("all"); setPage(1); }}>
             مسح الفلاتر
           </Button>
         )}
@@ -242,7 +242,45 @@ export default function Orders() {
         </Card>
       ) : (
         <Card>
-          <div className="overflow-x-auto">
+          {/* Mobile card-list: hidden on sm+ */}
+          <div className="sm:hidden divide-y">
+            {orders.map((order) => (
+              <div key={order.id} className="p-4 space-y-3">
+                {/* Row 1: order number + status */}
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-blue-700 font-medium">{order.orderNumber}</span>
+                  <OrderStatusBadge status={order.orderStatus} />
+                </div>
+                {/* Row 2: customer + amount */}
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{order.customerName}</p>
+                    <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
+                  </div>
+                  <span className="font-semibold text-blue-700 text-sm shrink-0 mr-2">{formatCurrency(order.totalAmount)}</span>
+                </div>
+                {/* Row 3: payment + date */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}</span>
+                  <span>{new Date(order.createdAt).toLocaleDateString("ar-EG")}</span>
+                </div>
+                {/* Row 4: actions */}
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target"
+                    onClick={() => setDetailOrder(order)}>
+                    <Eye className="h-3 w-3" /> عرض
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 text-xs tap-target"
+                    onClick={() => openStatusDialog(order)}>
+                    تحديث
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table: hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>

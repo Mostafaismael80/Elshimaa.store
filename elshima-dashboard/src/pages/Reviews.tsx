@@ -317,7 +317,64 @@ export default function Reviews() {
         </Card>
       ) : (
         <Card>
-          <div className="max-h-[70vh] overflow-y-auto w-full overflow-x-auto rounded-lg">
+          {/* Mobile card-list: hidden on sm+ */}
+          <div className="sm:hidden divide-y">
+            {reviews.map((review) => (
+              <div key={review.id} className="p-4 space-y-2">
+                {/* Row 1: product + featured */}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-sm truncate flex-1">{review.productName}</p>
+                  <Badge variant={review.isFeatured ? "success" : "secondary"}>
+                    {review.isFeatured ? "مميزة" : "عادية"}
+                  </Badge>
+                </div>
+                {/* Row 2: author + stars */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">{review.authorName}</span>
+                  <StarRating rating={review.rating} />
+                </div>
+                {/* Row 3: comment */}
+                {review.comment && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{review.comment}</p>
+                )}
+                {/* Row 4: images + date */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    {review.images.slice(0, 3).map((img) => (
+                      <img key={img.id} src={img.imageUrl} alt="" className="h-8 w-8 rounded object-cover border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ))}
+                    {review.images.length > 3 && <span className="text-xs text-muted-foreground">+{review.images.length - 3}</span>}
+                    {review.images.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDate(review.createdAt)}</span>
+                </div>
+                {/* Row 5: actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target" onClick={() => openEdit(review)}>
+                    <Pencil className="h-3 w-3" /> تعديل
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target" onClick={() => setImageDialogReview(review)}>
+                    <Image className="h-3 w-3" /> صور
+                  </Button>
+                  <label className="flex-1 cursor-pointer">
+                    <Button size="sm" variant="outline" className="w-full gap-1 text-xs tap-target pointer-events-none" asChild>
+                      <span>
+                        {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-3 w-3" />}
+                        رفع
+                      </span>
+                    </Button>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
+                  </label>
+                  <Button size="sm" variant="outline" className="tap-target px-3 text-red-500 hover:bg-red-50" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table: hidden on mobile */}
+          <div className="hidden sm:block max-h-[70vh] overflow-y-auto w-full overflow-x-auto rounded-lg">
             <div className="min-w-[900px]">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-white">
@@ -335,30 +392,21 @@ export default function Reviews() {
                 <TableBody>
                   {reviews.map((review) => (
                     <TableRow key={review.id}>
-                      {/* Product */}
                       <TableCell className="text-right font-medium text-sm max-w-[180px] truncate">
                         {review.productName}
                       </TableCell>
-
-                      {/* Author — Correction 1 */}
                       <TableCell className="text-right text-sm">
                         {review.authorName}
                       </TableCell>
-
-                      {/* Rating */}
                       <TableCell className="text-right">
                         <StarRating rating={review.rating} />
                       </TableCell>
-
-                      {/* Comment — Correction 5: truncate + tooltip */}
                       <TableCell
                         className="text-right text-sm text-muted-foreground max-w-[280px] truncate"
                         title={review.comment ?? undefined}
                       >
                         {truncateComment(review.comment)}
                       </TableCell>
-
-                      {/* Images */}
                       <TableCell className="text-right">
                         <div className="flex items-center gap-1">
                           {review.images
@@ -385,78 +433,31 @@ export default function Reviews() {
                           )}
                         </div>
                       </TableCell>
-
-                      {/* Featured badge */}
                       <TableCell className="text-right">
                         <Badge variant={review.isFeatured ? "success" : "secondary"}>
                           {review.isFeatured ? "مميزة" : "عادية"}
                         </Badge>
                       </TableCell>
-
-                      {/* Date */}
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {formatDate(review.createdAt)}
                       </TableCell>
-
-                      {/* Actions */}
                       <TableCell className="text-left">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            title="تعديل"
-                            onClick={() => openEdit(review)}
-                          >
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="تعديل" onClick={() => openEdit(review)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            title="إدارة الصور"
-                            onClick={() => setImageDialogReview(review)}
-                          >
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="إدارة الصور" onClick={() => setImageDialogReview(review)}>
                             <Image className="h-4 w-4" />
                           </Button>
-                          {/* Quick upload from table row */}
                           <label className="cursor-pointer">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 pointer-events-none"
-                              asChild
-                              title="رفع صورة"
-                            >
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 pointer-events-none" asChild title="رفع صورة">
                               <span>
-                                {uploadingFor === review.id ? (
-                                  <Spinner className="h-3 w-3" />
-                                ) : (
-                                  <Upload className="h-4 w-4" />
-                                )}
+                                {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-4 w-4" />}
                               </span>
                             </Button>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(review.id, file);
-                                e.target.value = "";
-                              }}
-                            />
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
                           </label>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                            title="حذف"
-                            onClick={() => {
-                              setSelected(review);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600" title="حذف" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>

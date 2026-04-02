@@ -230,39 +230,61 @@ export default function Dashboard() {
           {recentOrders.length === 0 ? (
             <p className="px-6 py-8 text-center text-sm text-muted-foreground">لا توجد طلبات حتى الآن</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">رقم الطلب</th>
-                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">العميل</th>
-                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">الإجمالي</th>
-                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">الحالة</th>
-                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">التاريخ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="border-b hover:bg-muted/20 transition-colors">
-                      <td className="px-6 py-3 text-right font-mono text-xs text-blue-600">{order.orderNumber}</td>
-                      <td className="px-6 py-3 text-right">
-                        <div>
-                          <p className="font-medium">{order.customerName}</p>
-                          <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3 text-right font-medium">{formatCurrency(order.totalAmount)}</td>
-                      <td className="px-6 py-3 text-right">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(order.orderStatus)}`}>
-                          {order.orderStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-right text-muted-foreground">{formatDate(order.createdAt)}</td>
+            <>
+              {/* ── Mobile card list (hidden on sm+) ── */}
+              <div className="sm:hidden divide-y">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-blue-600">{order.orderNumber}</span>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(order.orderStatus)}`}>
+                        {order.orderStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{order.customerName}</span>
+                      <span className="font-bold text-sm text-blue-700">{formatCurrency(order.totalAmount)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Desktop table (hidden on mobile) ── */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-6 py-3 text-right font-medium text-muted-foreground">رقم الطلب</th>
+                      <th className="px-6 py-3 text-right font-medium text-muted-foreground">العميل</th>
+                      <th className="px-6 py-3 text-right font-medium text-muted-foreground">الإجمالي</th>
+                      <th className="px-6 py-3 text-right font-medium text-muted-foreground">الحالة</th>
+                      <th className="px-6 py-3 text-right font-medium text-muted-foreground">التاريخ</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {recentOrders.map((order) => (
+                      <tr key={order.id} className="border-b hover:bg-muted/20 transition-colors">
+                        <td className="px-6 py-3 text-right font-mono text-xs text-blue-600">{order.orderNumber}</td>
+                        <td className="px-6 py-3 text-right">
+                          <div>
+                            <p className="font-medium">{order.customerName}</p>
+                            <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3 text-right font-medium">{formatCurrency(order.totalAmount)}</td>
+                        <td className="px-6 py-3 text-right">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(order.orderStatus)}`}>
+                            {order.orderStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-right text-muted-foreground">{formatDate(order.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
