@@ -25,7 +25,7 @@ import { useToast } from "../components/ui/toast";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "../components/ui/table";
-import { formatDate } from "../lib/utils";
+import { formatDate, getFullImageUrl } from "../lib/utils";
 import type { ReviewResponse, CreateReviewRequest } from "../types";
 
 // ─── Zod Schema ──────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ export default function Reviews() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     {review.images.slice(0, 3).map((img) => (
-                      <img key={img.id} src={img.imageUrl} alt="" className="h-8 w-8 rounded object-cover border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      <img key={img.id} src={getFullImageUrl(img.imageUrl)} alt="" className="h-8 w-8 rounded object-cover border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                     ))}
                     {review.images.length > 3 && <span className="text-xs text-muted-foreground">+{review.images.length - 3}</span>}
                     {review.images.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
@@ -415,7 +415,7 @@ export default function Reviews() {
                             .map((img) => (
                               <img
                                 key={img.id}
-                                src={img.imageUrl}
+                                src={getFullImageUrl(img.imageUrl)}
                                 alt=""
                                 className="h-8 w-8 rounded object-cover border"
                                 onError={(e) => {

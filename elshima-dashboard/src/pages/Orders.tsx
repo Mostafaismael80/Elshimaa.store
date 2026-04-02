@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, getFullImageUrl } from "../lib/utils";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "../types";
 import type { OrderResponse, UpdateOrderStatusRequest } from "../types";
 
@@ -377,7 +377,7 @@ export default function Orders() {
                 {detailOrder.items.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 border rounded p-2">
                     {item.productImageUrl && (
-                      <img src={item.productImageUrl} alt={item.productName}
+                      <img src={getFullImageUrl(item.productImageUrl)} alt={item.productName}
                         className="h-12 w-12 rounded object-cover flex-shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">

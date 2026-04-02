@@ -23,6 +23,7 @@ import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/table";
+import { getFullImageUrl } from "../lib/utils";
 import type { CategoryResponse } from "../types";
 
 
@@ -209,7 +210,7 @@ export default function Categories() {
                   <TableCell className="text-right py-4">
                     {cat.imageUrl ? (
                       <img
-                        src={cat.imageUrl}
+                        src={getFullImageUrl(cat.imageUrl)}
                         alt={cat.nameAr}
                         className="h-10 w-10 min-w-[40px] rounded-md object-cover ml-3"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -323,7 +324,7 @@ export default function Categories() {
                 />
                 {selectedCategory && selectedCategory.imageUrl && !imageFile && (
                   <div className="mt-2 flex items-center gap-2">
-                    <img src={selectedCategory.imageUrl} alt="current" className="h-10 w-10 object-cover rounded-md" />
+                    <img src={getFullImageUrl(selectedCategory.imageUrl)} alt="current" className="h-10 w-10 object-cover rounded-md" />
                     <span className="text-xs text-muted-foreground">الصورة الحالية</span>
                   </div>
                 )}

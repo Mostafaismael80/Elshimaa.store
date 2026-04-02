@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { LoadingPage, Spinner } from "../components/ui/spinner";
 import { Textarea } from "../components/ui/textarea";
 import { useToast } from "../components/ui/toast";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, getFullImageUrl } from "../lib/utils";
 import type { ProductResponse, CreateProductRequest, UpdateProductRequest } from "../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ function ProductImage({ src, alt }: { src: string | null | undefined; alt: strin
   }
   return (
     <img
-      src={src}
+      src={getFullImageUrl(src)}
       alt={alt}
       className="w-full h-full object-cover aspect-square"
       onError={(e) => {
@@ -903,7 +903,7 @@ export default function Products() {
                       <Label className="text-xs">{idx === 0 ? "الصورة الرئيسية (SortOrder 0)" : "صورة التمرير (SortOrder 1)"}</Label>
                       <div className="relative h-32 rounded overflow-hidden border bg-gray-100 group">
                         {d.previewUrl ? (
-                          <img src={d.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
+                          <img src={getFullImageUrl(d.previewUrl)} alt="معاينة" className="w-full h-full object-cover" />
                         ) : (
                           <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-400">
                             <Image className="h-6 w-6" />
@@ -1020,7 +1020,7 @@ export default function Products() {
                           </div>
                           {img.previewUrl ? (
                             <div className="relative h-24 rounded overflow-hidden border bg-gray-100">
-                              <img src={img.previewUrl} alt="معاينة" className="w-full h-full object-cover" />
+                              <img src={getFullImageUrl(img.previewUrl)} alt="معاينة" className="w-full h-full object-cover" />
                               <button type="button" onClick={() => clearImageFile(ci, ii)}
                                 className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow">
                                 <X className="h-3 w-3 text-red-500" />
