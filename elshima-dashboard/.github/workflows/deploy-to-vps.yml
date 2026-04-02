@@ -1,0 +1,48 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main ]  
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.0'  # Your Node version
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build React app
+        run: npm run build
+        env:
+          CI: false
+          ESLINT_NO_DEV_ERRORS: true
+
+      - name: Deploy build folder to VPS
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "build/*"
+          target: "/var/www/elshimaa/admin"
+
+      - name: Run post-deploy commands on VPS (set permissions)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "✅ Deploy done. Running post-deploy tasks..."
+            sudo chown -R www-data:www-data /var/www/elshimaa/admin/build
+            sudo chmod -R 755 /var/www/elshimaa/admin/build
+            echo "🚀 Permissions set! No nginx reload needed."
