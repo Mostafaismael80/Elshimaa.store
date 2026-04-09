@@ -768,7 +768,7 @@ export default function Products() {
 
               <div className="space-y-2">
                 <Label>الفئة *</Label>
-                <Select value={watch("categoryId")} onValueChange={(v) => setValue("categoryId", v)}>
+                <Select value={watch("categoryId") || undefined} onValueChange={(v) => setValue("categoryId", v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="اختر الفئة" />
                   </SelectTrigger>
@@ -784,7 +784,7 @@ export default function Products() {
               <div className="space-y-2">
                 <Label>نوع المقاس {!selectedProduct && "*"}</Label>
                 <Select
-                  value={watch("sizeTypeId")}
+                  value={watch("sizeTypeId") || undefined}
                   onValueChange={(v) => { if (!selectedProduct) setValue("sizeTypeId", v); }}
                   disabled={!!selectedProduct}
                 >
@@ -958,7 +958,7 @@ export default function Products() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">اللون</Label>
-                      <Select value={color.colorId} onValueChange={(v) => {
+                      <Select value={color.colorId || undefined} onValueChange={(v) => {
                         updateColor(ci, "colorId", v);
                         const selectedColor = systemColors.find(c => c.id === v);
                         if (selectedColor) {
@@ -1064,7 +1064,7 @@ export default function Products() {
                       <div key={si} className="grid grid-cols-4 gap-2 items-end">
                         <div className="space-y-1">
                           <Label className="text-xs">المقاس</Label>
-                          <Select value={s.sizeId} onValueChange={(v) => {
+                          <Select value={s.sizeId || undefined} onValueChange={(v) => {
                              updateSize(ci, si, "sizeId", v);
                              const selectedSize = systemSizes.find(size => size.id === v);
                              if (selectedSize) {
