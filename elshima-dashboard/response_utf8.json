@@ -1,0 +1,227 @@
+﻿{
+    "success":  true,
+    "message":  null,
+    "data":  [
+                 {
+                     "id":  "befd44fe-b4a6-4115-9fda-203e1d9d2230",
+                     "nameAr":  "الشتوي",
+                     "slug":  "الشتوي-1d99e74c",
+                     "descriptionAr":  "مجموعة شتوية دافئة وأنيقة من العبايات والملابس المحتشمة المصنوعة من أقمشة ثقيلة تناسب الأجواء الباردة",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/شتوي.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  1,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  2,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "f25ed608-eb5f-4e83-98cf-a9f855c25d84",
+                     "nameAr":  "الصيفي",
+                     "slug":  "الصيفي-a73a5f17",
+                     "descriptionAr":  "تشكيلة صيفية خفيفة ومريحة من الفساتين والعبايات المصنوعة من أقمشة قطنية وشيفون تناسب الطقس الحار",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/الصيفي.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  2,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "ad8effae-a9b3-4be7-aef1-21ce8c82e66c",
+                     "nameAr":  "إسدالات",
+                     "slug":  "إسدالات-ba041f39",
+                     "descriptionAr":  "مجموعة خاصة بشهر رمضان المبارك من العبايات والفساتين الأنيقة المناسبة للصلاة والإفطار والعزائم الرمضانية",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/%D8%B1%D9%85%D8%B6%D8%A7%D9%86.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  3,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "8516665e-5405-40b6-a46a-25ba2ea155f1",
+                     "nameAr":  "العمرة والحج",
+                     "slug":  "العمرة-والحج-72782a74",
+                     "descriptionAr":  "ملابس مخصصة للعمرة والحج مصنوعة من أقمشة مريحة وعملية تناسب مناسك الحج والعمرة والسفر",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/العمرة.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  4,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "3c9377fd-828c-42e3-b13e-67db45bf0895",
+                     "nameAr":  "مكملات",
+                     "slug":  "مكملات-98166495",
+                     "descriptionAr":  "إكسسوارات وحقائب ومكملات متنوعة لإكمال إطلالتك المحتشمة بلمسة عصرية وأنيقة",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/مكملات.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  5,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "da6c40b0-63bb-43c7-8e96-c01e695427bb",
+                     "nameAr":  "الجيب والبيزك",
+                     "slug":  "الجيب-والبيزك-0cb1290c",
+                     "descriptionAr":  "قطع أساسية يومية من الجلابيب والعبايات البسيطة المريحة المناسبة للارتداء اليومي في المنزل والخروجات البسيطة",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/الجيب والبيزك.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  6,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "03df509f-2b06-46cf-bb4a-52870f463d1e",
+                     "nameAr":  "نقابات و أطقم",
+                     "slug":  "نقابات-و-أطقم-be663ffe",
+                     "descriptionAr":  "نقابات بتصاميم متنوعة وأطقم كاملة منسقة من العباية والحجاب والنقاب بألوان متناسقة",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/نقابات و أطقم.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  7,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "9ddb99f8-c601-4007-9ce6-dda3fbc50b35",
+                     "nameAr":  "الوشاح و الكاب",
+                     "slug":  "الوشاح-و-الكاب-da8c168f",
+                     "descriptionAr":  "وشاحات وكابات بأقمشة مختلفة وألوان متنوعة لإطلالة محتشمة وعصرية مناسبة لجميع الأوقات",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/وشاحات وكابات.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  8,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "a82dfc3d-37d3-4d16-a533-39e73cffb76f",
+                     "nameAr":  "ملاحف",
+                     "slug":  "ملاحف-11b54ba3",
+                     "descriptionAr":  "ملاحف (عبايات خارجية) بتصاميم عصرية وأقمشة فاخرة مناسبة للخروج والمناسبات الخاصة",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/ملاحف.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  9,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "41aa4d3b-4682-4b51-a38a-1e019bf2042b",
+                     "nameAr":  "بوركيني",
+                     "slug":  "بوركيني-da305d6b",
+                     "descriptionAr":  "ملابس سباحة محتشمة للشاطئ والمسابح بتصاميم رياضية مريحة تجمع بين الاحتشام والعملية",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/121c04b3d45a4a9abf6a47a9bf6c91d2.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  10,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  0,
+                     "subCategories":  [
+
+                                       ]
+                 },
+                 {
+                     "id":  "0a6fdf3c-a6ec-4ffd-94a0-a7a1b30e05fa",
+                     "nameAr":  "بناطيل",
+                     "slug":  "بناطيل-799bdb96",
+                     "descriptionAr":  "بناطيل واسعة ومحتشمة بأقمشة مريحة وتصاميم عملية مناسبة للارتداء اليومي والعملي",
+                     "imageUrl":  "https://api.el-shimaa-store.com/images/categories/بناطيل.jpg",
+                     "parentCategoryId":  null,
+                     "parentCategoryName":  null,
+                     "displayOrder":  11,
+                     "isActive":  true,
+                     "discountType":  null,
+                     "discountValue":  null,
+                     "isDiscountActive":  false,
+                     "discountStartDate":  null,
+                     "discountEndDate":  null,
+                     "productCount":  1,
+                     "subCategories":  [
+
+                                       ]
+                 }
+             ],
+    "errors":  null
+}

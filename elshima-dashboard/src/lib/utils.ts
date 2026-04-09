@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getFullImageUrl(path?: string | null): string {
   if (!path) return "";
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) {
     return path;
   }
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
