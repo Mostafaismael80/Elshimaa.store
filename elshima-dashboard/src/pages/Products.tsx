@@ -543,27 +543,31 @@ export default function Products() {
       const resolvedColors = await resolveColorsForUpdate();
       if (!resolvedColors) return;
 
-      await updateMutation.mutateAsync({
-        id: selectedProduct.id,
-        data: {
-          nameAr: values.nameAr,
-          descriptionAr: values.descriptionAr,
-          basePrice: values.basePrice,
-          categoryId: values.categoryId,
-          isActive: values.isActive,
-          isFeatured: values.isFeatured,
-          includes: values.includes || null,
-          length: values.length || null,
-          material: values.material || null,
-          colors: resolvedColors,
-          displayImages: useDisplayImages ? resolvedDisplayImages : null,
-          isDiscountActive: values.isDiscountActive,
-          discountType: values.isDiscountActive ? values.discountType : null,
-          discountValue: values.isDiscountActive ? values.discountValue : null,
-          discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
-          discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
-        },
-      });
+      try {
+        await updateMutation.mutateAsync({
+          id: selectedProduct.id,
+          data: {
+            nameAr: values.nameAr,
+            descriptionAr: values.descriptionAr,
+            basePrice: values.basePrice,
+            categoryId: values.categoryId,
+            isActive: values.isActive,
+            isFeatured: values.isFeatured,
+            includes: values.includes || null,
+            length: values.length || null,
+            material: values.material || null,
+            colors: resolvedColors,
+            displayImages: useDisplayImages ? resolvedDisplayImages : null,
+            isDiscountActive: values.isDiscountActive,
+            discountType: values.isDiscountActive ? values.discountType : null,
+            discountValue: values.isDiscountActive ? values.discountValue : null,
+            discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
+            discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
+          },
+        });
+      } catch (error) {
+        console.error("Update product failed:", error);
+      }
     } else {
       if (!values.categoryId?.trim() || values.categoryId === "00000000-0000-0000-0000-000000000000") {
         toast("يرجى اختيار القسم", "error");
@@ -577,25 +581,29 @@ export default function Products() {
       const resolvedColors = await resolveColorsForCreate();
       if (!resolvedColors) return;
 
-      await createMutation.mutateAsync({
-        nameAr: values.nameAr,
-        descriptionAr: values.descriptionAr,
-        basePrice: values.basePrice,
-        categoryId: values.categoryId,
-        sizeTypeId: values.sizeTypeId,
-        isActive: values.isActive,
-        isFeatured: values.isFeatured,
-        includes: values.includes || null,
-        length: values.length || null,
-        material: values.material || null,
-        colors: resolvedColors as any, // Cast to any to override typing from old DTO format in UI
-        displayImages: useDisplayImages ? resolvedDisplayImages : null,
-        isDiscountActive: values.isDiscountActive,
-        discountType: values.isDiscountActive ? values.discountType : null,
-        discountValue: values.isDiscountActive ? values.discountValue : null,
-        discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
-        discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
-      });
+      try {
+        await createMutation.mutateAsync({
+          nameAr: values.nameAr,
+          descriptionAr: values.descriptionAr,
+          basePrice: values.basePrice,
+          categoryId: values.categoryId,
+          sizeTypeId: values.sizeTypeId,
+          isActive: values.isActive,
+          isFeatured: values.isFeatured,
+          includes: values.includes || null,
+          length: values.length || null,
+          material: values.material || null,
+          colors: resolvedColors as any, // Cast to any to override typing from old DTO format in UI
+          displayImages: useDisplayImages ? resolvedDisplayImages : null,
+          isDiscountActive: values.isDiscountActive,
+          discountType: values.isDiscountActive ? values.discountType : null,
+          discountValue: values.isDiscountActive ? values.discountValue : null,
+          discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
+          discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
+        });
+      } catch (error) {
+        console.error("Create product failed:", error);
+      }
     }
   };
 
@@ -743,15 +751,16 @@ export default function Products() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedProduct ? "تعديل المنتج" : "إضافة منتج جديد"}</DialogTitle>
-            <DialogDescription>
-              {selectedProduct ? "قم بتحديث تفاصيل المنتج أدناه." : "أدخل التفاصيل لإنشاء منتج جديد."}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-hidden p-0 gap-0">
+          <div className="max-h-[92vh] overflow-y-auto px-6 pb-6 pt-12">
+            <DialogHeader>
+              <DialogTitle>{selectedProduct ? "تعديل المنتج" : "إضافة منتج جديد"}</DialogTitle>
+              <DialogDescription>
+                {selectedProduct ? "قم بتحديث تفاصيل المنتج أدناه." : "أدخل التفاصيل لإنشاء منتج جديد."}
+              </DialogDescription>
+            </DialogHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Basic info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
@@ -1117,6 +1126,7 @@ export default function Products() {
               </Button>
             </DialogFooter>
           </form>
+          </div>
         </DialogContent>
       </Dialog>
 
