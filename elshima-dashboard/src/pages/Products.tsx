@@ -540,10 +540,10 @@ export default function Products() {
     }
 
     if (selectedProduct) {
-      const resolvedColors = await resolveColorsForUpdate();
-      if (!resolvedColors) return;
-
       try {
+        const resolvedColors = await resolveColorsForUpdate();
+        if (!resolvedColors) return;
+
         await updateMutation.mutateAsync({
           id: selectedProduct.id,
           data: {
@@ -565,8 +565,11 @@ export default function Products() {
             discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
           },
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Update product failed:", error);
+        if (error?.response?.status === 413) {
+          toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
+        }
       }
     } else {
       if (!values.categoryId?.trim() || values.categoryId === "00000000-0000-0000-0000-000000000000") {
@@ -578,10 +581,10 @@ export default function Products() {
         return;
       }
 
-      const resolvedColors = await resolveColorsForCreate();
-      if (!resolvedColors) return;
-
       try {
+        const resolvedColors = await resolveColorsForCreate();
+        if (!resolvedColors) return;
+
         await createMutation.mutateAsync({
           nameAr: values.nameAr,
           descriptionAr: values.descriptionAr,
@@ -601,8 +604,11 @@ export default function Products() {
           discountStartDate: values.isDiscountActive ? values.discountStartDate || null : null,
           discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Create product failed:", error);
+        if (error?.response?.status === 413) {
+          toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
+        }
       }
     }
   };
