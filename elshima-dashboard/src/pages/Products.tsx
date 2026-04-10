@@ -392,14 +392,21 @@ export default function Products() {
             colorId: c.colorId,
             colorName: c.colorName,
             isDefault: c.isDefault,
-            images: c.images.map((img) => ({
-              imageUrl: img.imageUrl,
-              file: null,
-              previewUrl: img.imageUrl, // already full URL from API
-              displayOrder: img.displayOrder,
-              isMain: img.isMain,
-              altText: img.altText ?? "",
-            })),
+            images: c.images.map((img) => {
+              // Store relative path in imageUrl (for sending to backend)
+              // Store full URL in previewUrl (for display in the form)
+              const fullUrl: string = img.imageUrl ?? "";
+              const idx = fullUrl.indexOf("/images/");
+              const relativeUrl = idx >= 0 ? fullUrl.substring(idx + 1) : fullUrl;
+              return {
+                imageUrl: relativeUrl,
+                file: null,
+                previewUrl: fullUrl, // full URL for <img> display
+                displayOrder: img.displayOrder,
+                isMain: img.isMain,
+                altText: img.altText ?? "",
+              };
+            }),
             sizes: c.variants.map((v) => ({
               sizeId: v.sizeId,
               sizeName: v.sizeName,
