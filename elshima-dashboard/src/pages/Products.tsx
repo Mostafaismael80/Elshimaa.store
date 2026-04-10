@@ -411,7 +411,8 @@ export default function Products() {
               sizeId: v.sizeId,
               sizeName: v.sizeName,
               availableQuantity: v.availableQuantity,
-              priceOverride: v.priceOverride,
+              // API returns 'price' not 'priceOverride' — use price if priceOverride is missing
+              priceOverride: (v as any).priceOverride ?? (v as any).price ?? null,
             })),
           }))
         );
@@ -422,7 +423,12 @@ export default function Products() {
       if (fullProduct.displayImages && fullProduct.displayImages.length > 0) {
         const sorted = [...fullProduct.displayImages].sort((a, b) => a.sortOrder - b.sortOrder);
         setDisplayImages(
-          sorted.map((d) => ({ imageUrl: d.imageUrl, file: null, previewUrl: d.imageUrl, sortOrder: d.sortOrder, altText: d.altText ?? "" }))
+          sorted.map((d) => {
+            const fullUrl: string = d.imageUrl ?? "";
+            const idx = fullUrl.indexOf("/images/");
+            const relativeUrl = idx >= 0 ? fullUrl.substring(idx + 1) : fullUrl;
+            return { imageUrl: relativeUrl, file: null, previewUrl: fullUrl, sortOrder: d.sortOrder, altText: d.altText ?? "" };
+          })
         );
         setUseDisplayImages(true);
       } else {
