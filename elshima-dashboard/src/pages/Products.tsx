@@ -212,7 +212,8 @@ export default function Products() {
 
   const createMutation = useMutation({
     mutationFn: (data: CreateProductRequest) => productsApi.create(data),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log("[CREATE] Success!", result);
       toast("تم إنشاء المنتج بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setDialogOpen(false);
@@ -221,7 +222,8 @@ export default function Products() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateProductRequest }) => productsApi.update(id, data),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log("[UPDATE] Success! Updated product:", result);
       toast("تم تحديث المنتج بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setDialogOpen(false);
@@ -305,7 +307,7 @@ export default function Products() {
   const addSize = (ci: number) =>
     setColors((prev) =>
       prev.map((c, i) =>
-        i === ci ? { ...c, sizes: [...c.sizes, { sizeId: "", sizeName: "", availableQuantity: 0, priceOverride: null }] } : c
+        i === ci ? { ...c, sizes: [...c.sizes, { sizeId: "", sizeName: "", availableQuantity: undefined as any, priceOverride: null }] } : c
       )
     );
   const removeSize = (ci: number, si: number) =>
@@ -566,7 +568,11 @@ export default function Products() {
         const resolvedColors = await resolveColorsForUpdate();
         if (!resolvedColors) return;
 
-        console.log("[UPDATE] Sending update for product:", selectedProduct.id);
+        console.log("[UPDATE] Sending update for product:", selectedProduct.id, {
+          resolvedColors,
+          resolvedDisplayImages,
+          useDisplayImages,
+        });
         await updateMutation.mutateAsync({
           id: selectedProduct.id,
           data: {
@@ -934,13 +940,14 @@ export default function Products() {
             </div>
 
             {/* Display Images */}
-            <div className="border rounded-lg p-4 space-y-3">
+            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-base font-semibold">صور البطاقة (Display Images)</Label>
+                  <Label className="text-base font-semibold text-blue-800">📸 صور بطاقة المنتج (Display Images)</Label>
+                  <p className="text-xs text-blue-700 mt-1 font-medium">⚠️ هذه الصور هي التي تظهر في قائمة المنتجات (البطاقة). صور الألوان أدناه لا تظهر في القائمة.</p>
                   <p className="text-xs text-muted-foreground mt-1">صورتان: الرئيسية (SortOrder 0) + التمرير (SortOrder 1)</p>
                 </div>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-blue-800">
                   <input
                     type="checkbox"
                     checked={useDisplayImages}
