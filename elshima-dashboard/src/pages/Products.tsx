@@ -1101,17 +1101,25 @@ export default function Products() {
                         <Plus className="h-3 w-3" /> إضافة مقاس
                       </Button>
                     </div>
+                    {!selectedProduct && !isValidGuid(watch("sizeTypeId")) && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                        يرجى اختيار نوع المقاس أولاً لعرض المقاسات المتاحة
+                      </p>
+                    )}
                     {color.sizes.map((s, si) => (
                       <div key={si} className="grid grid-cols-4 gap-2 items-end">
                         <div className="space-y-1">
                           <Label className="text-xs">المقاس</Label>
-                          <Select value={s.sizeId || undefined} onValueChange={(v) => {
-                             updateSize(ci, si, "sizeId", v);
-                             const selectedSize = systemSizes.find(size => size.id === v);
-                             if (selectedSize) {
-                               updateSize(ci, si, "sizeName", selectedSize.name);
-                             }
-                          }}>
+                          <Select
+                            value={s.sizeId || undefined}
+                            disabled={!selectedProduct && !isValidGuid(watch("sizeTypeId"))}
+                            onValueChange={(v) => {
+                               updateSize(ci, si, "sizeId", v);
+                               const selectedSize = systemSizes.find(size => size.id === v);
+                               if (selectedSize) {
+                                 updateSize(ci, si, "sizeName", selectedSize.name);
+                               }
+                            }}>
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue placeholder="اختر المقاس" />
                             </SelectTrigger>
