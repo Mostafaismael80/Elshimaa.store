@@ -217,7 +217,6 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل إنشاء المنتج", "error"),
   });
 
   const updateMutation = useMutation({
@@ -227,7 +226,6 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل تحديث المنتج", "error"),
   });
 
   const deleteMutation = useMutation({
@@ -332,7 +330,7 @@ export default function Products() {
 
   const openCreate = () => {
     setSelectedProduct(null);
-    reset({ nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, includes: "", length: "", material: "", isDiscountActive: false, discountType: 0, discountValue: 0, discountStartDate: "", discountEndDate: "" });
+    reset({ nameAr: "", descriptionAr: "", basePrice: undefined as any, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, includes: "", length: "", material: "", isDiscountActive: false, discountType: 0, discountValue: undefined as any, discountStartDate: "", discountEndDate: "" });
     setColors([defaultColorEntry()]);
     setDisplayImages(defaultDisplayImages());
     setUseDisplayImages(false);
@@ -549,23 +547,26 @@ export default function Products() {
 
 
   const onSubmit = async (values: ProductForm) => {
-    let resolvedDisplayImages = undefined;
-    if (useDisplayImages) {
-      const di = await Promise.all(
-        displayImages.map(async (d) => ({
-          imageUrl: await resolveImageUrl(d),
-          sortOrder: d.sortOrder,
-          altText: d.altText || undefined,
-        }))
-      );
-      resolvedDisplayImages = di;
-    }
-
+    console.log("[onSubmit] called, mode:", selectedProduct ? "edit" : "create", "values:", values);
     if (selectedProduct) {
       try {
+        // Resolve display images inside try/catch so any upload error is caught
+        let resolvedDisplayImages = undefined;
+        if (useDisplayImages) {
+          const di = await Promise.all(
+            displayImages.map(async (d) => ({
+              imageUrl: await resolveImageUrl(d),
+              sortOrder: d.sortOrder,
+              altText: d.altText || undefined,
+            }))
+          );
+          resolvedDisplayImages = di;
+        }
+
         const resolvedColors = await resolveColorsForUpdate();
         if (!resolvedColors) return;
 
+        console.log("[UPDATE] Sending update for product:", selectedProduct.id);
         await updateMutation.mutateAsync({
           id: selectedProduct.id,
           data: {
@@ -588,7 +589,7 @@ export default function Products() {
           },
         });
       } catch (error: any) {
-        console.error("Update product failed:", error);
+        console.error("[UPDATE] product failed:", error);
         if (error?.response?.status === 413) {
           toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
         } else {
@@ -606,9 +607,22 @@ export default function Products() {
       }
 
       try {
+        let resolvedDisplayImages = undefined;
+        if (useDisplayImages) {
+          const di = await Promise.all(
+            displayImages.map(async (d) => ({
+              imageUrl: await resolveImageUrl(d),
+              sortOrder: d.sortOrder,
+              altText: d.altText || undefined,
+            }))
+          );
+          resolvedDisplayImages = di;
+        }
+
         const resolvedColors = await resolveColorsForCreate();
         if (!resolvedColors) return;
 
+        console.log("[CREATE] Sending create request");
         await createMutation.mutateAsync({
           nameAr: values.nameAr,
           descriptionAr: values.descriptionAr,
@@ -620,7 +634,7 @@ export default function Products() {
           includes: values.includes || null,
           length: values.length || null,
           material: values.material || null,
-          colors: resolvedColors as any, // Cast to any to override typing from old DTO format in UI
+          colors: resolvedColors as any,
           displayImages: useDisplayImages ? resolvedDisplayImages : null,
           isDiscountActive: values.isDiscountActive,
           discountType: values.isDiscountActive ? values.discountType : null,
@@ -629,7 +643,7 @@ export default function Products() {
           discountEndDate: values.isDiscountActive ? values.discountEndDate || null : null,
         });
       } catch (error: any) {
-        console.error("Create product failed:", error);
+        console.error("[CREATE] product failed:", error);
         if (error?.response?.status === 413) {
           toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
         } else {
@@ -1158,6 +1172,17 @@ export default function Products() {
                 </div>
               ))}
             </div>
+
+            {/* Validation error summary — visible even when scrolled down */}
+            {Object.keys(errors).length > 0 && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 space-y-1">
+                <p className="font-semibold">يرجى تصحيح الأخطاء التالية:</p>
+                {errors.nameAr && <p>• {errors.nameAr.message}</p>}
+                {errors.basePrice && <p>• {errors.basePrice.message}</p>}
+                {errors.categoryId && <p>• {errors.categoryId.message}</p>}
+                {errors.sizeTypeId && <p>• {errors.sizeTypeId.message}</p>}
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
