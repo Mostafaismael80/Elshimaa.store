@@ -147,6 +147,9 @@ export interface ProductResponse {
   nameAr: string;
   slug: string;
   descriptionAr: string | null;
+  includes: string | null;
+  length: string | null;
+  material: string | null;
 
   // Pricing (computed, never stored)
   basePrice: number;
@@ -157,8 +160,14 @@ export interface ProductResponse {
   discountType: 'Percentage' | 'FixedAmount' | null;
   discountSource: 'Product' | 'Category' | null;
 
+  // Raw discount scheduling (for admin edit form)
+  isDiscountActive: boolean;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+
   categoryId: string;
   categoryName: string;
+  sizeTypeId: string;
   isActive: boolean;
   isFeatured: boolean;
   viewCount: number;

@@ -73,7 +73,7 @@ const defaultColorEntry = (): ColorEntry => ({
   colorName: "",
   isDefault: false,
   images: [{ imageUrl: "", file: null, previewUrl: "", displayOrder: 1, isMain: true, altText: "" }],
-  sizes: [{ sizeId: "", sizeName: "", availableQuantity: 0, priceOverride: null }],
+  sizes: [{ sizeId: "", sizeName: "", availableQuantity: undefined as any, priceOverride: null }],
 });
 
 const defaultDisplayImages = (): DisplayImageEntry[] => [
@@ -190,9 +190,9 @@ export default function Products() {
   });
 
   const categories = categoriesData?.data ?? [];
-  const systemColors = colorsData ?? [];
-  const systemSizes = sizesData ?? [];
-  const systemSizeTypes = sizeTypesData ?? [];
+  const systemColors = Array.isArray(colorsData) ? colorsData.filter((c, i, a) => a.findIndex(x => x.id === c.id) === i) : [];
+  const systemSizes = Array.isArray(sizesData) ? sizesData.filter((s, i, a) => a.findIndex(x => x.id === s.id) === i) : [];
+  const systemSizeTypes = Array.isArray(sizeTypesData) ? sizeTypesData.filter((t, i, a) => a.findIndex(x => x.id === t.id) === i) : [];
 
   // ─── Form ─────────────────────────────────────────────────────────────────────
 
@@ -205,7 +205,7 @@ export default function Products() {
     formState: { errors, isSubmitting },
   } = useForm<ProductForm>({
     resolver: zodResolver(productSchema) as any,
-    defaultValues: { nameAr: "", descriptionAr: "", basePrice: 0, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: 0 },
+    defaultValues: { nameAr: "", descriptionAr: "", basePrice: undefined as any, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: undefined as any },
   });
 
   // ─── Mutations ────────────────────────────────────────────────────────────────
@@ -346,19 +346,19 @@ export default function Products() {
     reset({
       nameAr: product.nameAr,
       descriptionAr: product.descriptionAr ?? "",
-      basePrice: product.basePrice || product.originalPrice || 0,
+      basePrice: product.basePrice || product.originalPrice || undefined,
       categoryId: product.categoryId,
-      sizeTypeId: "",
+      sizeTypeId: product.sizeTypeId ?? "",
       isActive: product.isActive,
       isFeatured: product.isFeatured,
       includes: (product as any).includes ?? "",
       length: (product as any).length ?? "",
       material: (product as any).material ?? "",
-      isDiscountActive: product.hasDiscount ?? false,
+      isDiscountActive: product.isDiscountActive ?? product.hasDiscount ?? false,
       discountType: (product.discountType === 'Percentage' ? 0 : product.discountType === 'FixedAmount' ? 1 : 0),
-      discountValue: product.discountValue ?? 0,
-      discountStartDate: "",
-      discountEndDate: "",
+      discountValue: product.discountValue ?? undefined,
+      discountStartDate: product.discountStartDate ? product.discountStartDate.substring(0, 16) : "",
+      discountEndDate: product.discountEndDate ? product.discountEndDate.substring(0, 16) : "",
     });
 
     // Load full detail to get colors with images/variants + complete product data
@@ -370,19 +370,19 @@ export default function Products() {
       reset({
         nameAr: fullProduct.nameAr,
         descriptionAr: fullProduct.descriptionAr ?? "",
-        basePrice: fullProduct.basePrice || fullProduct.originalPrice || 0,
+        basePrice: fullProduct.basePrice || fullProduct.originalPrice || undefined,
         categoryId: fullProduct.categoryId,
-        sizeTypeId: (fullProduct as any).sizeTypeId ?? "",
+        sizeTypeId: fullProduct.sizeTypeId ?? "",
         isActive: fullProduct.isActive,
         isFeatured: fullProduct.isFeatured,
-        includes: (fullProduct as any).includes ?? "",
-        length: (fullProduct as any).length ?? "",
-        material: (fullProduct as any).material ?? "",
-        isDiscountActive: fullProduct.hasDiscount ?? false,
+        includes: fullProduct.includes ?? "",
+        length: fullProduct.length ?? "",
+        material: fullProduct.material ?? "",
+        isDiscountActive: fullProduct.isDiscountActive ?? fullProduct.hasDiscount ?? false,
         discountType: (fullProduct.discountType === 'Percentage' ? 0 : fullProduct.discountType === 'FixedAmount' ? 1 : 0),
-        discountValue: fullProduct.discountValue ?? 0,
-        discountStartDate: "",
-        discountEndDate: "",
+        discountValue: fullProduct.discountValue ?? undefined,
+        discountStartDate: fullProduct.discountStartDate ? fullProduct.discountStartDate.substring(0, 16) : "",
+        discountEndDate: fullProduct.discountEndDate ? fullProduct.discountEndDate.substring(0, 16) : "",
       });
 
       if (fullProduct.colors && fullProduct.colors.length > 0) {
@@ -435,13 +435,11 @@ export default function Products() {
         setDisplayImages(defaultDisplayImages());
         setUseDisplayImages(false);
       }
-    } catch {
-      setColors([defaultColorEntry()]);
-      setDisplayImages(defaultDisplayImages());
-      setUseDisplayImages(false);
-    }
 
-    setDialogOpen(true);
+      setDialogOpen(true);
+    } catch {
+      toast("فشل تحميل بيانات المنتج، يرجى المحاولة مرة أخرى", "error");
+    }
   };
 
   const openDelete = (product: ProductResponse) => {
@@ -451,6 +449,9 @@ export default function Products() {
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
 
+  const isValidGuid = (v: string | undefined | null) =>
+    !!v && v.trim() !== "" && v !== "00000000-0000-0000-0000-000000000000";
+
   const resolveColorsForUpdate = async () => {
     if (colors.length === 0) {
       toast("يجب اختيار لون واحد على الأقل", "error");
@@ -458,6 +459,14 @@ export default function Products() {
     }
     if (colors.some((c) => c.sizes.length === 0)) {
       toast("يجب اختيار مقاس واحد على الأقل", "error");
+      return null;
+    }
+    if (colors.some((c) => c.sizes.some((s) => !isValidGuid(s.sizeId)))) {
+      toast("يرجى اختيار المقاس من القائمة المنسدلة لكل لون", "error");
+      return null;
+    }
+    if (colors.some((c) => !c.colorName?.trim())) {
+      toast("يرجى التأكد من تحديد اسم اللون لكل لون", "error");
       return null;
     }
 
@@ -566,9 +575,9 @@ export default function Products() {
             categoryId: values.categoryId,
             isActive: values.isActive,
             isFeatured: values.isFeatured,
-            includes: values.includes || null,
-            length: values.length || null,
-            material: values.material || null,
+            includes: values.includes ?? null,
+            length: values.length ?? null,
+            material: values.material ?? null,
             colors: resolvedColors,
             displayImages: useDisplayImages ? resolvedDisplayImages : null,
             isDiscountActive: values.isDiscountActive,
@@ -582,6 +591,8 @@ export default function Products() {
         console.error("Update product failed:", error);
         if (error?.response?.status === 413) {
           toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
+        } else {
+          toast(error?.response?.data?.message ?? "حدث خطأ أثناء حفظ المنتج، يرجى المحاولة مرة أخرى", "error");
         }
       }
     } else {
@@ -621,6 +632,8 @@ export default function Products() {
         console.error("Create product failed:", error);
         if (error?.response?.status === 413) {
           toast("فشل رفع الصورة: حجم الملف كبير جداً", "error");
+        } else {
+          toast(error?.response?.data?.message ?? "حدث خطأ أثناء إنشاء المنتج، يرجى المحاولة مرة أخرى", "error");
         }
       }
     }
@@ -790,7 +803,7 @@ export default function Products() {
 
               <div className="space-y-2">
                 <Label>السعر الأساسي (ج.م) *</Label>
-                <Input type="number" step="0.01" {...register("basePrice")} />
+                <Input type="number" step="0.01" placeholder="0.00" {...register("basePrice")} />
                 {errors.basePrice && <p className="text-xs text-red-500">{errors.basePrice.message}</p>}
               </div>
 
@@ -886,7 +899,7 @@ export default function Products() {
                     </div>
                     <div className="space-y-2">
                       <Label>القيمة</Label>
-                      <Input type="number" step="0.01" min="0" {...register("discountValue")} />
+                      <Input type="number" step="0.01" min="0" placeholder="0.00" {...register("discountValue")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1104,7 +1117,7 @@ export default function Products() {
                             </SelectTrigger>
                             <SelectContent>
                               {systemSizes
-                                .filter(size => !watch("sizeTypeId") || size.sizeTypeId === watch("sizeTypeId"))
+                                .filter(size => !isValidGuid(watch("sizeTypeId")) || size.sizeTypeId === watch("sizeTypeId"))
                                 .map((size) => (
                                 <SelectItem key={size.id} value={size.id}>{size.name}</SelectItem>
                               ))}
@@ -1118,8 +1131,9 @@ export default function Products() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">الكمية</Label>
-                          <Input type="number" min={0} value={s.availableQuantity}
-                            onChange={(e) => updateSize(ci, si, "availableQuantity", Number(e.target.value))}
+                          <Input type="number" min={0} placeholder="0"
+                            value={s.availableQuantity ?? ""}
+                            onChange={(e) => updateSize(ci, si, "availableQuantity", e.target.value === "" ? undefined : Number(e.target.value))}
                             className="h-8 text-xs" />
                         </div>
                         <div className="flex items-end gap-1">
