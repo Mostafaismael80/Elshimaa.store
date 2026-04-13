@@ -208,6 +208,17 @@ export default function Products() {
     defaultValues: { nameAr: "", descriptionAr: "", basePrice: undefined as any, categoryId: "", sizeTypeId: "", isActive: true, isFeatured: false, isDiscountActive: false, discountType: 0, discountValue: undefined as any },
   });
 
+  const isValidGuid = (v: string | undefined | null) =>
+    !!v && v.trim() !== "" && v !== "00000000-0000-0000-0000-000000000000";
+
+  const watchedSizeTypeId = watch("sizeTypeId");
+  const filteredSizes = systemSizes
+    .filter(size => {
+      if (!isValidGuid(watchedSizeTypeId)) return true;
+      return size.sizeTypeId === watchedSizeTypeId;
+    })
+    .filter((size, idx, arr) => arr.findIndex(s => s.name === size.name) === idx);
+
   // ─── Mutations ────────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
@@ -449,9 +460,6 @@ export default function Products() {
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
 
-  const isValidGuid = (v: string | undefined | null) =>
-    !!v && v.trim() !== "" && v !== "00000000-0000-0000-0000-000000000000";
-
   const resolveColorsForUpdate = async () => {
     if (colors.length === 0) {
       toast("يجب اختيار لون واحد على الأقل", "error");
@@ -473,14 +481,35 @@ export default function Products() {
     return Promise.all(
       colors.map(async (c) => {
         const resolvedImages = await Promise.all(
-          c.images.map(async (img) => ({
-            imageUrl: await resolveImageUrl(img),
-            displayOrder: img.displayOrder,
-            isMain: img.isMain,
-            altText: img.altText || undefined,
-          }))
+          c.images.map(async (img) => {
+            try {
+              const url = await resolveImageUrl(img);
+              return {
+                imageUrl: url ?? "",
+                displayOrder: img.displayOrder,
+                isMain: img.isMain,
+                altText: img.altText || undefined,
+              };
+            } catch (err) {
+              console.error("[resolveColorsForUpdate] Image upload failed:", err);
+              return {
+                imageUrl: "",
+                displayOrder: img.displayOrder,
+                isMain: img.isMain,
+                altText: img.altText || undefined,
+              };
+            }
+          })
         );
         const filteredImages = resolvedImages.filter(img => img.imageUrl && img.imageUrl.trim() !== "");
+
+        const pendingNewImages = c.images.filter(img => img.file != null).length;
+        const resolvedNewImages = resolvedImages.filter(
+          (img, i) => c.images[i]?.file != null && img.imageUrl && img.imageUrl.trim() !== ""
+        ).length;
+        if (pendingNewImages > 0 && resolvedNewImages < pendingNewImages) {
+          console.warn(`[resolveColorsForUpdate] Color "${c.colorName}": ${pendingNewImages - resolvedNewImages} image(s) failed to upload`);
+        }
 
         return {
           colorId: c.productColorId?.trim() || undefined,
@@ -524,12 +553,25 @@ export default function Products() {
     return Promise.all(
       colors.map(async (c) => {
         const resolvedImages = await Promise.all(
-          c.images.map(async (img) => ({
-            imageUrl: await resolveImageUrl(img),
-            displayOrder: img.displayOrder,
-            isMain: img.isMain,
-            altText: img.altText || undefined,
-          }))
+          c.images.map(async (img) => {
+            try {
+              const url = await resolveImageUrl(img);
+              return {
+                imageUrl: url ?? "",
+                displayOrder: img.displayOrder,
+                isMain: img.isMain,
+                altText: img.altText || undefined,
+              };
+            } catch (err) {
+              console.error("[resolveColorsForCreate] Image upload failed:", err);
+              return {
+                imageUrl: "",
+                displayOrder: img.displayOrder,
+                isMain: img.isMain,
+                altText: img.altText || undefined,
+              };
+            }
+          })
         );
         const filteredImages = resolvedImages.filter(img => img.imageUrl && img.imageUrl.trim() !== "");
 
@@ -1122,7 +1164,7 @@ export default function Products() {
                         <Plus className="h-3 w-3" /> إضافة مقاس
                       </Button>
                     </div>
-                    {!selectedProduct && !isValidGuid(watch("sizeTypeId")) && (
+                    {!selectedProduct && !isValidGuid(watchedSizeTypeId) && (
                       <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                         يرجى اختيار نوع المقاس أولاً لعرض المقاسات المتاحة
                       </p>
@@ -1133,10 +1175,10 @@ export default function Products() {
                           <Label className="text-xs">المقاس</Label>
                           <Select
                             value={s.sizeId || undefined}
-                            disabled={!selectedProduct && !isValidGuid(watch("sizeTypeId"))}
+                            disabled={!selectedProduct && !isValidGuid(watchedSizeTypeId)}
                             onValueChange={(v) => {
                                updateSize(ci, si, "sizeId", v);
-                               const selectedSize = systemSizes.find(size => size.id === v);
+                               const selectedSize = filteredSizes.find(size => size.id === v);
                                if (selectedSize) {
                                  updateSize(ci, si, "sizeName", selectedSize.name);
                                }
@@ -1145,9 +1187,7 @@ export default function Products() {
                               <SelectValue placeholder="اختر المقاس" />
                             </SelectTrigger>
                             <SelectContent>
-                              {systemSizes
-                                .filter(size => !isValidGuid(watch("sizeTypeId")) || size.sizeTypeId === watch("sizeTypeId"))
-                                .map((size) => (
+                              {filteredSizes.map((size) => (
                                 <SelectItem key={size.id} value={size.id}>{size.name}</SelectItem>
                               ))}
                             </SelectContent>
