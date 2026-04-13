@@ -1179,7 +1179,7 @@ export default function Products() {
                       </p>
                     )}
                     {color.sizes.map((s, si) => (
-                      <div key={si} className="grid grid-cols-4 gap-2 items-end">
+                      <div key={si} className="grid grid-cols-5 gap-2 items-end">
                         <div className="space-y-1">
                           <Label className="text-xs">المقاس</Label>
                           <Select
@@ -1213,6 +1213,17 @@ export default function Products() {
                             value={s.availableQuantity ?? ""}
                             onChange={(e) => updateSize(ci, si, "availableQuantity", e.target.value === "" ? undefined : Number(e.target.value))}
                             className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            سعر خاص (ج.م)
+                          </Label>
+                          <Input
+                            type="number" min={0} step={1} placeholder="كالأساسي"
+                            value={s.priceOverride ?? ""}
+                            onChange={(e) => updateSize(ci, si, "priceOverride", e.target.value === "" ? null : Number(e.target.value))}
+                            className={`h-8 text-xs ${s.priceOverride != null ? "border-blue-400 bg-blue-50" : ""}`}
+                          />
                         </div>
                         <div className="flex items-end gap-1">
                           {color.sizes.length > 1 && (
