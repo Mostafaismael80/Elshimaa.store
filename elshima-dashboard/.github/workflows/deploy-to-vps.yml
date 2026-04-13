@@ -26,13 +26,13 @@ jobs:
           CI: false
           ESLINT_NO_DEV_ERRORS: true
 
-      - name: Deploy build folder to VPS
+      - name: Deploy dist folder to VPS
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "build/*"
+          source: "dist/*"
           target: "/var/www/elshimaa/admin"
 
       - name: Run post-deploy commands on VPS (set permissions)
@@ -42,7 +42,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            echo "✅ Deploy done. Running post-deploy tasks..."
-            sudo chown -R www-data:www-data /var/www/elshimaa/admin/build
-            sudo chmod -R 755 /var/www/elshimaa/admin/build
-            echo "🚀 Permissions set! No nginx reload needed."
+            echo "Deploy done. Running post-deploy tasks..."
+            sudo chown -R www-data:www-data /var/www/elshimaa/admin/dist
+            sudo chmod -R 755 /var/www/elshimaa/admin/dist
+            echo "Permissions set! No nginx reload needed."

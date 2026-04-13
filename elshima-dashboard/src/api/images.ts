@@ -11,7 +11,7 @@ export async function uploadImage(file: File): Promise<string> {
   const { data } = await apiClient.post<ApiResponse<{ url: string }>>(
     '/images/upload',
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
   );
   return data.data.url;
 }

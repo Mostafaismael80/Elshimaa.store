@@ -20,7 +20,9 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("ar-EG", {
     style: "currency",
     currency: "EGP",
-  }).format(amount);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(amount));
 }
 
 export function formatDate(dateString: string | null | undefined): string {

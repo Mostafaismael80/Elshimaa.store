@@ -86,7 +86,7 @@ const defaultDisplayImages = (): DisplayImageEntry[] => [
 const productSchema = z.object({
   nameAr: z.string().min(2, "الاسم مطلوب"),
   descriptionAr: z.string().optional(),
-  basePrice: z.coerce.number().min(0.01, "السعر يجب أن يكون أكبر من صفر"),
+  basePrice: z.coerce.number().int("السعر يجب أن يكون رقم صحيح بدون كسور").min(1, "السعر يجب أن يكون أكبر من صفر"),
   categoryId: z.string().min(1, "الفئة مطلوبة"),
   sizeTypeId: z.string().default(""),
   isActive: z.boolean().default(true),
@@ -123,6 +123,8 @@ function ProductImage({ src, alt }: { src: string | null | undefined; alt: strin
     <img
       src={getFullImageUrl(src)}
       alt={alt}
+      loading="lazy"
+      decoding="async"
       className="w-full h-full object-cover aspect-square"
       onError={(e) => {
         const img = e.currentTarget;
@@ -872,7 +874,7 @@ export default function Products() {
 
               <div className="space-y-2">
                 <Label>السعر الأساسي (ج.م) *</Label>
-                <Input type="number" step="0.01" placeholder="0.00" {...register("basePrice")} />
+                <Input type="number" step="1" min="1" placeholder="0" {...register("basePrice")} />
                 {errors.basePrice && <p className="text-xs text-red-500">{errors.basePrice.message}</p>}
               </div>
 
@@ -1014,7 +1016,7 @@ export default function Products() {
                       <Label className="text-xs">{idx === 0 ? "الصورة الرئيسية (SortOrder 0)" : "صورة التمرير (SortOrder 1)"}</Label>
                       <div className="relative h-32 rounded overflow-hidden border bg-gray-100 group">
                         {d.previewUrl ? (
-                          <img src={getFullImageUrl(d.previewUrl)} alt="معاينة" className="w-full h-full object-cover" />
+                          <img src={getFullImageUrl(d.previewUrl)} alt="معاينة" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-400">
                             <Image className="h-6 w-6" />
@@ -1131,7 +1133,7 @@ export default function Products() {
                           </div>
                           {img.previewUrl ? (
                             <div className="relative h-24 rounded overflow-hidden border bg-gray-100">
-                              <img src={getFullImageUrl(img.previewUrl)} alt="معاينة" className="w-full h-full object-cover" />
+                              <img src={getFullImageUrl(img.previewUrl)} alt="معاينة" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                               <button type="button" onClick={() => clearImageFile(ci, ii)}
                                 className="absolute top-1 left-1 bg-white rounded-full p-0.5 shadow">
                                 <X className="h-3 w-3 text-red-500" />
@@ -1193,7 +1195,7 @@ export default function Products() {
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue placeholder="اختر المقاس" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent side="top">
                               {filteredSizes.map((size) => (
                                 <SelectItem key={size.id} value={size.id}>{size.name}</SelectItem>
                               ))}
