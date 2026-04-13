@@ -212,12 +212,13 @@ export default function Products() {
     !!v && v.trim() !== "" && v !== "00000000-0000-0000-0000-000000000000";
 
   const watchedSizeTypeId = watch("sizeTypeId");
+  const normalizeSizeName = (n: string) => n.trim().toLowerCase().replace(/×/g, "x").replace(/\s+/g, " ");
   const filteredSizes = systemSizes
     .filter(size => {
       if (!isValidGuid(watchedSizeTypeId)) return true;
       return size.sizeTypeId === watchedSizeTypeId;
     })
-    .filter((size, idx, arr) => arr.findIndex(s => s.name === size.name) === idx);
+    .filter((size, idx, arr) => arr.findIndex(s => normalizeSizeName(s.name) === normalizeSizeName(size.name)) === idx);
 
   // ─── Mutations ────────────────────────────────────────────────────────────────
 
@@ -610,11 +611,17 @@ export default function Products() {
         const resolvedColors = await resolveColorsForUpdate();
         if (!resolvedColors) return;
 
-        console.log("[UPDATE] Sending update for product:", selectedProduct.id, {
-          resolvedColors,
-          resolvedDisplayImages,
-          useDisplayImages,
-        });
+        const colorImageSummary = resolvedColors.map((c: any) => `${c.colorName}: ${c.images?.length ?? 0} صور`).join(" | ");
+        console.log("[UPDATE] Sending update for product:", selectedProduct.id);
+        console.log("[UPDATE] Colors detail:", JSON.stringify(resolvedColors, null, 2));
+        console.log("[UPDATE] Image summary:", colorImageSummary);
+
+        const totalNewFiles = colors.reduce((sum, c) => sum + c.images.filter(img => img.file != null).length, 0);
+        const totalResolvedImages = resolvedColors.reduce((sum: number, c: any) => sum + (c.images?.length ?? 0), 0);
+        if (totalNewFiles > 0) {
+          console.log(`[UPDATE] New files to upload: ${totalNewFiles}, Total resolved images: ${totalResolvedImages}`);
+        }
+
         await updateMutation.mutateAsync({
           id: selectedProduct.id,
           data: {
