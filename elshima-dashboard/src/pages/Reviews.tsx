@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,11 +28,11 @@ import {
 import { formatDate, getFullImageUrl } from "../lib/utils";
 import type { ReviewResponse, CreateReviewRequest } from "../types";
 
-// â”€â”€â”€ Zod Schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Zod Schema ──────────────────────────────────────────────────────────────
 
 const schema = z.object({
-  productId: z.string().min(1, "Ø§Ù„Ù…Ù†ØªØ¬ Ù…Ø·Ù„ÙˆØ¨"),
-  authorName: z.string().min(1, "Ø§Ø³Ù… Ø§Ù„ÙƒØ§ØªØ¨ Ù…Ø·Ù„ÙˆØ¨"),
+  productId: z.string().min(1, "المنتج مطلوب"),
+  authorName: z.string().min(1, "اسم الكاتب مطلوب"),
   rating: z.coerce.number().min(1).max(5),
   comment: z.string().optional(),
   isFeatured: z.boolean().default(false),
@@ -40,7 +40,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-// â”€â”€â”€ Star Rating Display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Star Rating Display ─────────────────────────────────────────────────────
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -55,7 +55,7 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-// â”€â”€â”€ Star Rating Picker (interactive) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Star Rating Picker (interactive) ───────────────────────────────────────
 
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0);
@@ -84,13 +84,13 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function Reviews() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // â”€â”€ UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── UI state ──────────────────────────────────────────────────────────────
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -98,7 +98,7 @@ export default function Reviews() {
   const [selected, setSelected] = useState<ReviewResponse | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
 
-  // â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Queries ───────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
     queryKey: ["reviews", page],
@@ -114,7 +114,7 @@ export default function Reviews() {
   const pagination = data?.data;
   const products = productsData?.data?.items ?? [];
 
-  // â”€â”€ Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Form ──────────────────────────────────────────────────────────────────
 
   const {
     register,
@@ -128,12 +128,12 @@ export default function Reviews() {
     defaultValues: { productId: "", authorName: "", rating: 5, comment: "", isFeatured: false },
   });
 
-  // â”€â”€ Mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateReviewRequest) => reviewsApi.create(payload),
     onSuccess: (res) => {
-      toast("ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© Ø¨Ù†Ø¬Ø§Ø­", "success");
+      toast("تم إنشاء المراجعة بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["reviews"] });
       setDialogOpen(false);
 
@@ -157,48 +157,48 @@ export default function Reviews() {
       };
       if (shell.id) setImageDialogReview(shell);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل إنشاء المراجعة", "error"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateReviewRequest }) =>
       reviewsApi.update(id, data),
     onSuccess: () => {
-      toast("ØªÙ… Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø¨Ù†Ø¬Ø§Ø­", "success");
+      toast("تم التحديث بنجاح", "success");
       queryClient.invalidateQueries({ queryKey: ["reviews"] });
       setDialogOpen(false);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø§Ù„ØªØ­Ø¯ÙŠØ«", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل التحديث", "error"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => reviewsApi.delete(id),
     onSuccess: () => {
-      toast("ØªÙ… Ø­Ø°Ù Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© ÙˆØµÙˆØ±Ù‡Ø§", "success");
+      toast("تم حذف المراجعة وصورها", "success");
       queryClient.invalidateQueries({ queryKey: ["reviews"] });
       setDeleteDialogOpen(false);
       setSelected(null);
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø§Ù„Ø­Ø°Ù", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل الحذف", "error"),
   });
 
-  // â”€â”€ Image mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Image mutations ────────────────────────────────────────────────────────
 
   const uploadMutation = useMutation({
     mutationFn: ({ reviewId, file }: { reviewId: string; file: File }) =>
       reviewsApi.uploadImage(reviewId, file),
     onSuccess: (res) => {
-      toast("ØªÙ… Ø±ÙØ¹ Ø§Ù„ØµÙˆØ±Ø© Ø¨Ù†Ø¬Ø§Ø­", "success");
+      toast("تم رفع الصورة بنجاح", "success");
 
-      // apiClient does NOT strip ApiResponse wrapper â†’ res is ApiResponse<ReviewResponse>
-      // â†’ res.data is the full ReviewResponse (review + updated images list from backend)
+      // apiClient does NOT strip ApiResponse wrapper → res is ApiResponse<ReviewResponse>
+      // → res.data is the full ReviewResponse (review + updated images list from backend)
       const updatedReview: ReviewResponse | undefined = res?.data ?? undefined;
 
       if (updatedReview?.id) {
-        // â‘  Update modal immediately â€” works regardless of cache state
+        // ① Update modal immediately — works regardless of cache state
         setImageDialogReview(updatedReview);
 
-        // â‘¡ Sync cache so table thumbnail also updates
+        // ② Sync cache so table thumbnail also updates
         queryClient.setQueryData<any>(["reviews", page], (old: any) => {
           const items: any[] = old?.data?.items ?? [];
           if (!items.length) return old;
@@ -213,24 +213,24 @@ export default function Reviews() {
           };
         });
       } else {
-        // Fallback: no typed data in response â€” re-fetch
+        // Fallback: no typed data in response — re-fetch
         queryClient.invalidateQueries({ queryKey: ["reviews"] });
       }
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø±ÙØ¹ Ø§Ù„ØµÙˆØ±Ø©", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل رفع الصورة", "error"),
   });
 
   const deleteImageMutation = useMutation({
     mutationFn: (imageId: string) => reviewsApi.deleteImage(imageId),
     onSuccess: (_res, imageId) => {
-      toast("ØªÙ… Ø­Ø°Ù Ø§Ù„ØµÙˆØ±Ø©", "success");
+      toast("تم حذف الصورة", "success");
 
-      // â‘  Update modal immediately via functional setState (no stale closure risk)
+      // ① Update modal immediately via functional setState (no stale closure risk)
       setImageDialogReview((prev) =>
         prev ? { ...prev, images: prev.images.filter((img) => img.id !== imageId) } : prev
       );
 
-      // â‘¡ Sync cache so table thumbnails also update
+      // ② Sync cache so table thumbnails also update
       queryClient.setQueryData<any>(["reviews", page], (old: any) => {
         const items: any[] = old?.data?.items ?? [];
         if (!items.length) return old;
@@ -246,7 +246,7 @@ export default function Reviews() {
         };
       });
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø­Ø°Ù Ø§Ù„ØµÙˆØ±Ø©", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل حذف الصورة", "error"),
   });
 
   const reorderMutation = useMutation({
@@ -258,13 +258,13 @@ export default function Reviews() {
       items: { imageId: string; displayOrder: number }[];
     }) => reviewsApi.reorderImages(reviewId, { items }),
     onSuccess: () => {
-      toast("ØªÙ… Ø¥Ø¹Ø§Ø¯Ø© ØªØ±ØªÙŠØ¨ Ø§Ù„ØµÙˆØ±", "success");
+      toast("تم إعادة ترتيب الصور", "success");
       queryClient.invalidateQueries({ queryKey: ["reviews"] });
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? "ÙØ´Ù„ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªØ±ØªÙŠØ¨", "error"),
+    onError: (err: any) => toast(err?.response?.data?.message ?? "فشل إعادة الترتيب", "error"),
   });
 
-  // â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleFileUpload = async (reviewId: string, file: File) => {
     setUploadingFor(reviewId);
@@ -323,11 +323,11 @@ export default function Reviews() {
 
   // Correction 5: truncate comment to 80 chars for table display
   const truncateComment = (comment: string | null): string => {
-    if (!comment) return "â€”";
-    return comment.length > 80 ? comment.slice(0, 80) + "â€¦" : comment;
+    if (!comment) return "—";
+    return comment.length > 80 ? comment.slice(0, 80) + "…" : comment;
   };
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -335,13 +335,13 @@ export default function Reviews() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø§Øª</h2>
+          <h2 className="text-2xl font-bold text-gray-900">المراجعات</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            {pagination?.totalCount ?? 0} Ù…Ø±Ø§Ø¬Ø¹Ø©
+            {pagination?.totalCount ?? 0} مراجعة
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2">
-          <Plus className="h-4 w-4" /> Ø¥Ø¶Ø§ÙØ© Ù…Ø±Ø§Ø¬Ø¹Ø©
+          <Plus className="h-4 w-4" /> إضافة مراجعة
         </Button>
       </div>
 
@@ -352,12 +352,12 @@ export default function Reviews() {
         <Card>
           <CardContent className="py-20 text-center">
             <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-20 text-gray-400" />
-            <p className="text-lg font-semibold text-gray-700 mb-2">Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ø±Ø§Ø¬Ø¹Ø§Øª Ø¨Ø¹Ø¯</p>
+            <p className="text-lg font-semibold text-gray-700 mb-2">لا توجد مراجعات بعد</p>
             <p className="text-sm text-muted-foreground mb-6">
-              Ø§Ø¨Ø¯Ø£ Ø¨Ø¥Ø¶Ø§ÙØ© Ù…Ø±Ø§Ø¬Ø¹Ø§Øª Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ ÙˆØµÙˆØ±Ù‡Ù… Ù„ØªØ¸Ù‡Ø± Ù‡Ù†Ø§
+              ابدأ بإضافة مراجعات العملاء وصورهم لتظهر هنا
             </p>
             <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" /> Ø¥Ø¶Ø§ÙØ© Ù…Ø±Ø§Ø¬Ø¹Ø©
+              <Plus className="h-4 w-4" /> إضافة مراجعة
             </Button>
           </CardContent>
         </Card>
@@ -371,7 +371,7 @@ export default function Reviews() {
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium text-sm truncate flex-1">{review.productName}</p>
                   <Badge variant={review.isFeatured ? "success" : "secondary"}>
-                    {review.isFeatured ? "Ù…Ù…ÙŠØ²Ø©" : "Ø¹Ø§Ø¯ÙŠØ©"}
+                    {review.isFeatured ? "مميزة" : "عادية"}
                   </Badge>
                 </div>
                 {/* Row 2: author + stars */}
@@ -390,23 +390,23 @@ export default function Reviews() {
                       <img key={img.id} src={getFullImageUrl(img.imageUrl)} alt="" className="h-8 w-8 rounded object-cover border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                     ))}
                     {review.images.length > 3 && <span className="text-xs text-muted-foreground">+{review.images.length - 3}</span>}
-                    {review.images.length === 0 && <span className="text-xs text-muted-foreground">â€”</span>}
+                    {review.images.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
                   </div>
                   <span className="text-xs text-muted-foreground">{formatDate(review.createdAt)}</span>
                 </div>
                 {/* Row 5: actions */}
                 <div className="flex items-center gap-2 pt-1">
                   <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target" onClick={() => openEdit(review)}>
-                    <Pencil className="h-3 w-3" /> ØªØ¹Ø¯ÙŠÙ„
+                    <Pencil className="h-3 w-3" /> تعديل
                   </Button>
                   <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target" onClick={() => setImageDialogReview(review)}>
-                    <Image className="h-3 w-3" /> ØµÙˆØ±
+                    <Image className="h-3 w-3" /> صور
                   </Button>
                   <label className="flex-1 cursor-pointer">
                     <Button size="sm" variant="outline" className="w-full gap-1 text-xs tap-target pointer-events-none" asChild>
                       <span>
                         {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-3 w-3" />}
-                        Ø±ÙØ¹
+                        رفع
                       </span>
                     </Button>
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
@@ -425,14 +425,14 @@ export default function Reviews() {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-white">
                   <TableRow>
-                    <TableHead className="text-right">Ø§Ù„Ù…Ù†ØªØ¬</TableHead>
-                    <TableHead className="text-right">Ø§Ù„ÙƒØ§ØªØ¨</TableHead>
-                    <TableHead className="text-right">Ø§Ù„ØªÙ‚ÙŠÙŠÙ…</TableHead>
-                    <TableHead className="text-right">Ø§Ù„ØªØ¹Ù„ÙŠÙ‚</TableHead>
-                    <TableHead className="text-right">Ø§Ù„ØµÙˆØ±</TableHead>
-                    <TableHead className="text-right">Ù…Ù…ÙŠØ²Ø©</TableHead>
-                    <TableHead className="text-right">Ø§Ù„ØªØ§Ø±ÙŠØ®</TableHead>
-                    <TableHead className="text-left w-32">Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª</TableHead>
+                    <TableHead className="text-right">المنتج</TableHead>
+                    <TableHead className="text-right">الكاتب</TableHead>
+                    <TableHead className="text-right">التقييم</TableHead>
+                    <TableHead className="text-right">التعليق</TableHead>
+                    <TableHead className="text-right">الصور</TableHead>
+                    <TableHead className="text-right">مميزة</TableHead>
+                    <TableHead className="text-right">التاريخ</TableHead>
+                    <TableHead className="text-left w-32">الإجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -475,13 +475,13 @@ export default function Reviews() {
                             </span>
                           )}
                           {review.images.length === 0 && (
-                            <span className="text-xs text-muted-foreground">â€”</span>
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge variant={review.isFeatured ? "success" : "secondary"}>
-                          {review.isFeatured ? "Ù…Ù…ÙŠØ²Ø©" : "Ø¹Ø§Ø¯ÙŠØ©"}
+                          {review.isFeatured ? "مميزة" : "عادية"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
@@ -489,21 +489,21 @@ export default function Reviews() {
                       </TableCell>
                       <TableCell className="text-left">
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="ØªØ¹Ø¯ÙŠÙ„" onClick={() => openEdit(review)}>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="تعديل" onClick={() => openEdit(review)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙˆØ±" onClick={() => setImageDialogReview(review)}>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="إدارة الصور" onClick={() => setImageDialogReview(review)}>
                             <Image className="h-4 w-4" />
                           </Button>
                           <label className="cursor-pointer">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 pointer-events-none" asChild title="Ø±ÙØ¹ ØµÙˆØ±Ø©">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 pointer-events-none" asChild title="رفع صورة">
                               <span>
                                 {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-4 w-4" />}
                               </span>
                             </Button>
                             <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
                           </label>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600" title="Ø­Ø°Ù" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600" title="حذف" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -526,10 +526,10 @@ export default function Reviews() {
             disabled={!pagination.hasPreviousPage}
             onClick={() => setPage((p) => p - 1)}
           >
-            <ChevronRight className="h-4 w-4" /> Ø§Ù„Ø³Ø§Ø¨Ù‚
+            <ChevronRight className="h-4 w-4" /> السابق
           </Button>
           <span className="text-sm text-muted-foreground">
-            ØµÙØ­Ø© {pagination.pageNumber} Ù…Ù† {pagination.totalPages}
+            صفحة {pagination.pageNumber} من {pagination.totalPages}
           </span>
           <Button
             variant="outline"
@@ -537,20 +537,20 @@ export default function Reviews() {
             disabled={!pagination.hasNextPage}
             onClick={() => setPage((p) => p + 1)}
           >
-            Ø§Ù„ØªØ§Ù„ÙŠ <ChevronLeft className="h-4 w-4" />
+            التالي <ChevronLeft className="h-4 w-4" />
           </Button>
         </div>
       )}
 
-      {/* â”€â”€ Create / Edit Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Create / Edit Dialog ─────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && setDialogOpen(false)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selected ? "ØªØ¹Ø¯ÙŠÙ„ Ù…Ø±Ø§Ø¬Ø¹Ø©" : "Ø¥Ø¶Ø§ÙØ© Ù…Ø±Ø§Ø¬Ø¹Ø© Ø¬Ø¯ÙŠØ¯Ø©"}</DialogTitle>
+            <DialogTitle>{selected ? "تعديل مراجعة" : "إضافة مراجعة جديدة"}</DialogTitle>
             <DialogDescription>
               {selected
-                ? `ØªØ¹Ø¯ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ø±Ø§Ø¬Ø¹Ø©: ${selected.authorName}`
-                : "Ø£Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø©"}
+                ? `تعديل بيانات مراجعة: ${selected.authorName}`
+                : "أدخل بيانات المراجعة الجديدة"}
             </DialogDescription>
           </DialogHeader>
 
@@ -558,14 +558,14 @@ export default function Reviews() {
 
             {/* Product selector */}
             <div className="space-y-2">
-              <Label>Ø§Ù„Ù…Ù†ØªØ¬</Label>
+              <Label>المنتج</Label>
               <Controller
                 name="productId"
                 control={control}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Ø§Ø®ØªØ± Ù…Ù†ØªØ¬Ø§Ù‹..." />
+                      <SelectValue placeholder="اختر منتجاً..." />
                     </SelectTrigger>
                     <SelectContent>
                       {products.map((p) => (
@@ -582,10 +582,10 @@ export default function Reviews() {
               )}
             </div>
 
-            {/* Author name â€” Correction 1 */}
+            {/* Author name — Correction 1 */}
             <div className="space-y-2">
-              <Label>Ø§Ø³Ù… Ø§Ù„ÙƒØ§ØªØ¨</Label>
-              <Input {...register("authorName")} placeholder="Ù…Ø«Ø§Ù„: Ø³Ø§Ø±Ø© Ø£Ø­Ù…Ø¯" />
+              <Label>اسم الكاتب</Label>
+              <Input {...register("authorName")} placeholder="مثال: سارة أحمد" />
               {errors.authorName && (
                 <p className="text-xs text-red-500">{errors.authorName.message}</p>
               )}
@@ -593,7 +593,7 @@ export default function Reviews() {
 
             {/* Star picker */}
             <div className="space-y-2">
-              <Label>Ø§Ù„ØªÙ‚ÙŠÙŠÙ…</Label>
+              <Label>التقييم</Label>
               <Controller
                 name="rating"
                 control={control}
@@ -605,10 +605,10 @@ export default function Reviews() {
 
             {/* Comment */}
             <div className="space-y-2">
-              <Label>Ø§Ù„ØªØ¹Ù„ÙŠÙ‚ (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)</Label>
+              <Label>التعليق (اختياري)</Label>
               <Textarea
                 {...register("comment")}
-                placeholder="Ø§ÙƒØªØ¨ ØªØ¹Ù„ÙŠÙ‚ Ø§Ù„Ø¹Ù…ÙŠÙ„ Ù‡Ù†Ø§..."
+                placeholder="اكتب تعليق العميل هنا..."
                 rows={3}
               />
             </div>
@@ -622,41 +622,41 @@ export default function Reviews() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <Label htmlFor="isFeatured" className="cursor-pointer">
-                Ù…Ø±Ø§Ø¬Ø¹Ø© Ù…Ù…ÙŠØ²Ø© (ØªØ¸Ù‡Ø± ÙÙŠ Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©)
+                مراجعة مميزة (تظهر في الصفحة الرئيسية)
               </Label>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Ø¥Ù„ØºØ§Ø¡
+                إلغاء
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Spinner className="ml-2 h-4 w-4" />}
-                {selected ? "Ø­ÙØ¸ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª" : "Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©"}
+                {selected ? "حفظ التعديلات" : "إنشاء المراجعة"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Delete Confirmation Dialog â€” Correction 7 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Delete Confirmation Dialog — Correction 7 ────────────────────── */}
       <Dialog open={deleteDialogOpen} onOpenChange={(open) => !open && setDeleteDialogOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ø­Ø°Ù Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©</DialogTitle>
+            <DialogTitle>حذف المراجعة</DialogTitle>
             <DialogDescription>
-              Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø­Ø°Ù Ù…Ø±Ø§Ø¬Ø¹Ø© <strong>{selected?.authorName}</strong>ØŸ
+              هل أنت متأكد من حذف مراجعة <strong>{selected?.authorName}</strong>؟
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-            <span className="mt-0.5">âš ï¸</span>
+            <span className="mt-0.5">⚠️</span>
             <p>
-              Ø³ÙŠØ¤Ø¯ÙŠ Ø­Ø°Ù Ù‡Ø°Ù‡ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© Ø¥Ù„Ù‰ Ø­Ø°Ù Ø¬Ù…ÙŠØ¹ Ø§Ù„ØµÙˆØ± Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨Ù‡Ø§ Ù†Ù‡Ø§Ø¦ÙŠØ§Ù‹ ÙˆÙ„Ø§ ÙŠÙ…ÙƒÙ† Ø§Ù„ØªØ±Ø§Ø¬Ø¹ Ø¹Ù† Ù‡Ø°Ø§ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡.
+              سيؤدي حذف هذه المراجعة إلى حذف جميع الصور المرتبطة بها نهائياً ولا يمكن التراجع عن هذا الإجراء.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              ØªØ±Ø§Ø¬Ø¹
+              تراجع
             </Button>
             <Button
               variant="destructive"
@@ -664,22 +664,22 @@ export default function Reviews() {
               onClick={() => selected && deleteMutation.mutate(selected.id)}
             >
               {deleteMutation.isPending && <Spinner className="ml-2 h-4 w-4" />}
-              ØªØ£ÙƒÙŠØ¯ Ø§Ù„Ø­Ø°Ù
+              تأكيد الحذف
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Image Management Dialog (Correction 8 â€” preserved verbatim) â”€â”€â”€â”€ */}
+      {/* ── Image Management Dialog (Correction 8 — preserved verbatim) ──── */}
       <Dialog
         open={!!imageDialogReview}
         onOpenChange={(o) => !o && setImageDialogReview(null)}
       >
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Ø¥Ø¯Ø§Ø±Ø© ØµÙˆØ± Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©</DialogTitle>
+            <DialogTitle>إدارة صور المراجعة</DialogTitle>
             <DialogDescription>
-              {imageDialogReview?.productName} â€” {imageDialogReview?.authorName}
+              {imageDialogReview?.productName} — {imageDialogReview?.authorName}
             </DialogDescription>
           </DialogHeader>
 
@@ -689,15 +689,15 @@ export default function Reviews() {
               <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
                 <StarRating rating={imageDialogReview.rating} />
                 <span className="text-sm text-muted-foreground flex-1 truncate">
-                  {imageDialogReview.comment || "Ø¨Ø¯ÙˆÙ† ØªØ¹Ù„ÙŠÙ‚"}
+                  {imageDialogReview.comment || "بدون تعليق"}
                 </span>
               </div>
 
-              {/* Images grid â€” sorted by displayOrder ASC */}
+              {/* Images grid — sorted by displayOrder ASC */}
               {imageDialogReview.images.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">
                   <Image className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  Ù„Ø§ ØªÙˆØ¬Ø¯ ØµÙˆØ± Ù„Ù‡Ø°Ù‡ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©
+                  لا توجد صور لهذه المراجعة
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-3">
@@ -721,7 +721,7 @@ export default function Reviews() {
                             disabled={index === 0}
                             onClick={() => moveImage(imageDialogReview, index, -1)}
                           >
-                            â–¶
+                            ▶
                           </Button>
                           <Button
                             size="sm"
@@ -739,7 +739,7 @@ export default function Reviews() {
                             disabled={index === imageDialogReview.images.length - 1}
                             onClick={() => moveImage(imageDialogReview, index, 1)}
                           >
-                            â—€
+                            ◀
                           </Button>
                         </div>
                         <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 rounded">
@@ -750,12 +750,12 @@ export default function Reviews() {
                 </div>
               )}
 
-              {/* Upload new â€” hidden when review already has an image (max 1 rule) */}
+              {/* Upload new — hidden when review already has an image (max 1 rule) */}
               <div className="space-y-2">
-                <Label>Ø±ÙØ¹ ØµÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©</Label>
+                <Label>رفع صورة جديدة</Label>
                 {imageDialogReview.images.length >= 1 ? (
                   <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                    ÙŠØ­ØªÙˆÙŠ Ù‡Ø°Ø§ Ø§Ù„ØªÙ‚ÙŠÙŠÙ… Ø¹Ù„Ù‰ ØµÙˆØ±Ø© Ø¨Ø§Ù„ÙØ¹Ù„. Ø§Ø­Ø°Ù Ø§Ù„ØµÙˆØ±Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ© Ø£ÙˆÙ„Ø§Ù‹ Ù„Ø±ÙØ¹ ØµÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©.
+                    يحتوي هذا التقييم على صورة بالفعل. احذف الصورة الحالية أولاً لرفع صورة جديدة.
                   </p>
                 ) : (
                   <>
@@ -768,7 +768,7 @@ export default function Reviews() {
                         e.target.value = "";
                       }}
                     />
-                    <p className="text-xs text-muted-foreground">ÙŠØªÙ… Ø±ÙØ¹ ØµÙˆØ±Ø© ÙˆØ§Ø­Ø¯Ø© ÙÙŠ ÙƒÙ„ Ù…Ø±Ø©</p>
+                    <p className="text-xs text-muted-foreground">يتم رفع صورة واحدة في كل مرة</p>
                   </>
                 )}
               </div>
@@ -777,7 +777,7 @@ export default function Reviews() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setImageDialogReview(null)}>
-              Ø¥ØºÙ„Ø§Ù‚
+              إغلاق
             </Button>
           </DialogFooter>
         </DialogContent>
