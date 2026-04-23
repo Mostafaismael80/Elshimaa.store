@@ -5,7 +5,6 @@ import type {
   CreateReviewRequest,
   UpdateReviewRequest,
   ReorderReviewImagesRequest,
-  ReviewImageResponse,
   PaginatedResponse,
 } from "../types";
 
