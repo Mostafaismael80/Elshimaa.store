@@ -67,8 +67,8 @@ export default function Announcements() {
 
   // Admin list sorted by createdAt DESC (backend default)
   const { data, isLoading } = useQuery({
-    queryKey: ["announcements", showInactive],
-    queryFn: () => announcementsApi.getAll(showInactive),
+    queryKey: ["announcements"],
+    queryFn: () => announcementsApi.getAll(),
   });
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -165,7 +165,10 @@ export default function Announcements() {
     }
   };
 
-  const announcements = data?.data ?? [];
+  const allAnnouncements = data?.data ?? [];
+  const announcements = showInactive 
+    ? allAnnouncements 
+    : allAnnouncements.filter((a) => a.isActive || a.isCurrentlyActive);
 
   // ─── Date overlap detection ────────────────────────────────────────────────
 

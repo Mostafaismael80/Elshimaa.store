@@ -7,10 +7,8 @@ import type {
 } from "../types";
 
 export const announcementsApi = {
-  getAll: async (includeInactive = false): Promise<ApiResponse<AnnouncementResponse[]>> => {
-    const res = await apiClient.get<ApiResponse<AnnouncementResponse[]>>("/admin/announcements", {
-      params: { includeInactive },
-    });
+  getAll: async (): Promise<ApiResponse<AnnouncementResponse[]>> => {
+    const res = await apiClient.get<ApiResponse<AnnouncementResponse[]>>("/admin/announcements");
     return res.data;
   },
 
