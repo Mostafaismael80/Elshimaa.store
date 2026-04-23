@@ -187,18 +187,59 @@ export default function Reviews() {
   const uploadMutation = useMutation({
     mutationFn: ({ reviewId, file }: { reviewId: string; file: File }) =>
       reviewsApi.uploadImage(reviewId, file),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast("تم رفع الصورة بنجاح", "success");
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+
+      const updatedReview = res.data;
+      if (updatedReview) {
+        // Single source of truth: update cache first, then read FROM the cache to update modal.
+        // setImageDialogReview is called INSIDE setQueryData so it always reads the already-updated value.
+        queryClient.setQueryData<any>(["reviews", page], (old: any) => {
+          if (!old?.data?.items) {
+            // Cache not populated for this page — set modal from response directly and re-fetch
+            setImageDialogReview(updatedReview);
+            queryClient.invalidateQueries({ queryKey: ["reviews"] });
+            return old;
+          }
+          const updatedItems = old.data.items.map((r: any) =>
+            r.id === updatedReview.id ? updatedReview : r
+          );
+          // Read the freshly updated review from the updated list
+          const freshReview = updatedItems.find((r: any) => r.id === updatedReview.id);
+          // Update modal INSIDE this callback — guaranteed to use updated data, not stale snapshot
+          setImageDialogReview(freshReview ?? updatedReview);
+          return { ...old, data: { ...old.data, items: updatedItems } };
+        });
+      } else {
+        // No data in response — fall back to server re-fetch
+        queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      }
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل رفع الصورة", "error"),
   });
 
   const deleteImageMutation = useMutation({
     mutationFn: (imageId: string) => reviewsApi.deleteImage(imageId),
-    onSuccess: () => {
+    onSuccess: (_res, imageId) => {
       toast("تم حذف الصورة", "success");
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      // Mirror the same single-source-of-truth pattern: update cache then sync modal from it.
+      queryClient.setQueryData<any>(["reviews", page], (old: any) => {
+        if (!old?.data?.items) {
+          queryClient.invalidateQueries({ queryKey: ["reviews"] });
+          return old;
+        }
+        const updatedItems = old.data.items.map((r: any) => ({
+          ...r,
+          images: r.images.filter((img: any) => img.id !== imageId),
+        }));
+        // Keep modal in sync: find the review that just had its image deleted
+        const openId = imageDialogReview?.id;
+        if (openId) {
+          const freshReview = updatedItems.find((r: any) => r.id === openId);
+          if (freshReview) setImageDialogReview(freshReview);
+        }
+        return { ...old, data: { ...old.data, items: updatedItems } };
+      });
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? "فشل حذف الصورة", "error"),
   });
@@ -704,19 +745,27 @@ export default function Reviews() {
                 </div>
               )}
 
-              {/* Upload new */}
+              {/* Upload new — hidden when review already has an image (max 1 rule) */}
               <div className="space-y-2">
                 <Label>رفع صورة جديدة</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(imageDialogReview.id, file);
-                    e.target.value = "";
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">يتم رفع صورة واحدة في كل مرة</p>
+                {imageDialogReview.images.length >= 1 ? (
+                  <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    يحتوي هذا التقييم على صورة بالفعل. احذف الصورة الحالية أولاً لرفع صورة جديدة.
+                  </p>
+                ) : (
+                  <>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(imageDialogReview.id, file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">يتم رفع صورة واحدة في كل مرة</p>
+                  </>
+                )}
               </div>
             </div>
           )}

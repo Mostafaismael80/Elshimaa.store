@@ -50,11 +50,13 @@ export const reviewsApi = {
 
   // ─── Image Management (preserved verbatim — Correction 8) ─────────────────
 
-  /** POST /api/admin/reviews/{reviewId}/images — single file upload */
-  uploadImage: async (reviewId: string, file: File): Promise<ApiResponse<ReviewImageResponse>> => {
+  /** POST /api/admin/reviews/{reviewId}/images — single file upload.
+   *  NOTE: backend returns the full ReviewResponse (not just the image),
+   *  so we declare Promise<ApiResponse<ReviewResponse>> to match exactly. */
+  uploadImage: async (reviewId: string, file: File): Promise<ApiResponse<ReviewResponse>> => {
     const fd = new FormData();
     fd.append("image", file); // field name MUST be "image"
-    const res = await apiClient.post<ApiResponse<ReviewImageResponse>>(
+    const res = await apiClient.post<ApiResponse<ReviewResponse>>(
       `/admin/reviews/${reviewId}/images`,
       fd,
       { headers: { "Content-Type": "multipart/form-data" } }
