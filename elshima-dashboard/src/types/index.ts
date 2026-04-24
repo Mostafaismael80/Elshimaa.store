@@ -554,6 +554,7 @@ export interface AnnouncementResponse {
   id: string;
   text: string;
   backgroundColor: string;
+  textColor: string;
   redirectUrl: string | null;
   startDate: string;
   endDate: string;
@@ -566,6 +567,7 @@ export interface AnnouncementResponse {
 export interface CreateAnnouncementRequest {
   text: string;
   backgroundColor: string;
+  textColor: string;
   redirectUrl?: string;
   startDate: string;
   endDate: string;

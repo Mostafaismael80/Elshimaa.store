@@ -23,20 +23,21 @@ import type { AnnouncementResponse } from "../types";
 
 const hexRegex = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
 
-const COLOR_PALETTE = [
-  { label: "بني أساسي", hex: "#695434" },
-  { label: "ذهبي",      hex: "#c9aa6f" },
-  { label: "داكن",      hex: "#1a0e06" },
-  { label: "نجاح",      hex: "#16a34a" },
-  { label: "تحذير",     hex: "#ea580c" },
-  { label: "خطأ",       hex: "#dc2626" },
-  { label: "معلومة",    hex: "#2563eb" },
+const COLOR_PRESETS = [
+  { label: "الأساسي",    bg: "#1A0E06", text: "#C9A96E" },
+  { label: "أسود فاخر",  bg: "#0D0702", text: "#EAD8B5" },
+  { label: "بني دافئ",   bg: "#3D2010", text: "#C9A96E" },
+  { label: "ذهبي كريمي", bg: "#EAD8B5", text: "#1A0E06" },
+  { label: "كريمي ناعم", bg: "#F9F5F0", text: "#A07838" },
+  { label: "عنبري",      bg: "#6B5F54", text: "#EAD8B5" },
+  { label: "أحمر ملكي",  bg: "#5C0A0A", text: "#EAD8B5" },
 ];
 
 const schema = z
   .object({
     text: z.string().min(1, "نص الإعلان مطلوب"),
     backgroundColor: z.string().regex(hexRegex, "لون غير صالح (مثال: #FF5733)"),
+    textColor: z.string().regex(hexRegex, "لون النص غير صالح (مثال: #FFFFFF)"),
     redirectUrl: z.string().optional(),
     startDate: z.string().min(1, "تاريخ البداية مطلوب"),
     endDate: z.string().min(1, "تاريخ النهاية مطلوب"),
@@ -73,10 +74,10 @@ export default function Announcements() {
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { backgroundColor: "#695434", isActive: true, priority: 0 },
+    defaultValues: { backgroundColor: "#695434", textColor: "#FFFFFF", isActive: true, priority: 0 },
   });
 
-  // ─── Mutations (refetch immediately — backend flushes cache) ──────────────
+  // ─── Mutations (refetch immediately — backend flushes cache) ──────────
 
   const createMutation = useMutation({
     mutationFn: (data: any) => announcementsApi.create(data),
@@ -122,7 +123,7 @@ export default function Announcements() {
 
   const openCreate = () => {
     setSelected(null);
-    reset({ text: "", backgroundColor: "#695434", redirectUrl: "", startDate: "", endDate: "", isActive: true, priority: 0 });
+    reset({ text: "", backgroundColor: "#695434", textColor: "#FFFFFF", redirectUrl: "", startDate: "", endDate: "", isActive: true, priority: 0 });
     setDialogOpen(true);
   };
 
@@ -131,6 +132,7 @@ export default function Announcements() {
     reset({
       text: a.text,
       backgroundColor: a.backgroundColor,
+      textColor: a.textColor ?? "#FFFFFF",
       redirectUrl: a.redirectUrl ?? "",
       startDate: a.startDate?.slice(0, 16),
       endDate: a.endDate?.slice(0, 16),
@@ -141,7 +143,6 @@ export default function Announcements() {
   };
 
   const onSubmit = async (values: FormValues) => {
-    // Explicitly parse and stringify to standard ISO format
     let startIso, endIso;
     try {
       startIso = new Date(values.startDate).toISOString();
@@ -183,9 +184,16 @@ export default function Announcements() {
     });
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Watched values for live preview ─────────────────────────────────────
 
-  const watchedBg = watch("backgroundColor");
+  const watchedBg   = watch("backgroundColor");
+  const watchedText = watch("textColor");
+  const watchedMsg  = watch("text");
+
+  const validBg   = hexRegex.test(watchedBg)   ? watchedBg   : "#695434";
+  const validText = hexRegex.test(watchedText)  ? watchedText : "#FFFFFF";
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -219,7 +227,7 @@ export default function Announcements() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right w-8">اللون</TableHead>
+                <TableHead className="text-right w-16">الألوان</TableHead>
                 <TableHead className="text-right">النص</TableHead>
                 <TableHead className="text-right">الأولوية</TableHead>
                 <TableHead className="text-right">الصلاحية</TableHead>
@@ -234,7 +242,14 @@ export default function Announcements() {
                 return (
                   <TableRow key={a.id}>
                     <TableCell className="text-right">
-                      <div className="h-6 w-6 rounded-full border" style={{ backgroundColor: a.backgroundColor }} />
+                      {/* Diagonal split square: bg / text color */}
+                      <div
+                        className="h-7 w-7 rounded-md border overflow-hidden"
+                        style={{
+                          background: `linear-gradient(135deg, ${a.backgroundColor} 50%, ${a.textColor ?? "#FFFFFF"} 50%)`,
+                        }}
+                        title={`خلفية: ${a.backgroundColor} | نص: ${a.textColor ?? "#FFFFFF"}`}
+                      />
                     </TableCell>
                     <TableCell className="text-right font-medium max-w-[300px] truncate">
                       {a.text}
@@ -292,52 +307,82 @@ export default function Announcements() {
               {errors.text && <p className="text-xs text-red-500">{errors.text.message}</p>}
             </div>
 
-            {/* Live Preview Banner */}
-            {watch("text") && (
-              <div
-                className="rounded-lg px-4 py-3 text-white text-sm font-medium text-center"
-                style={{ backgroundColor: hexRegex.test(watchedBg) ? watchedBg : "#3B82F6" }}
-              >
-                {watch("text")}
-              </div>
-            )}
+            {/* ── Live Preview Banner (real-time bg + text color) ─── */}
+            <div
+              className="rounded-lg px-4 py-3 text-sm font-medium text-center transition-colors duration-150 min-h-[44px] flex items-center justify-center"
+              style={{ backgroundColor: validBg, color: validText }}
+            >
+              {watchedMsg || <span style={{ opacity: 0.5 }}>معاينة الإعلان</span>}
+            </div>
 
-            {/* ── Color Palette ───────────────────────────────────── */}
+            {/* ── Color Presets (bg + text together) ─────────────── */}
             <div className="space-y-2">
-              <Label>لون الخلفية</Label>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_PALETTE.map((c) => (
-                  <button
-                    key={c.hex}
-                    type="button"
-                    title={c.label}
-                    onClick={() => setValue("backgroundColor", c.hex)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      watch("backgroundColor") === c.hex
-                        ? "border-gray-800 scale-110 shadow-md"
-                        : "border-transparent hover:border-gray-400"
-                    }`}
-                    style={{ backgroundColor: c.hex }}
+              <Label>الثيم اللوني</Label>
+              <div className="flex gap-2 flex-wrap">
+                {COLOR_PRESETS.map((p) => {
+                  const isActive = watch("backgroundColor") === p.bg && watch("textColor") === p.text;
+                  return (
+                    <button
+                      key={p.bg}
+                      type="button"
+                      title={p.label}
+                      onClick={() => {
+                        setValue("backgroundColor", p.bg);
+                        setValue("textColor", p.text);
+                      }}
+                      className="flex flex-col items-center gap-1 group"
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-lg border-2 transition-all shadow overflow-hidden ${
+                          isActive
+                            ? "border-blue-500 scale-110"
+                            : "border-transparent group-hover:border-blue-400"
+                        }`}
+                        style={{ background: `linear-gradient(135deg, ${p.bg} 50%, ${p.text} 50%)` }}
+                      />
+                      <span className="text-[10px] text-gray-400">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Custom HEX inputs ────────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">لون الخلفية (HEX)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    {...register("backgroundColor")}
+                    placeholder="#000000"
+                    className="h-8 text-xs font-mono"
+                    maxLength={7}
+                    dir="ltr"
                   />
-                ))}
-              </div>
-              {/* Custom HEX fallback */}
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-muted-foreground">أو أدخل HEX مخصص:</span>
-                <Input
-                  {...register("backgroundColor")}
-                  placeholder="#000000"
-                  className="h-7 w-32 text-xs font-mono"
-                  maxLength={7}
-                />
-                <div
-                  className="w-8 h-7 rounded border flex items-center justify-center text-white text-xs font-bold overflow-hidden"
-                  style={{ backgroundColor: hexRegex.test(watchedBg) ? watchedBg : "#000" }}
-                >
-                  Aa
+                  <div
+                    className="w-8 h-8 rounded border flex-shrink-0"
+                    style={{ backgroundColor: validBg }}
+                  />
                 </div>
+                {errors.backgroundColor && <p className="text-xs text-red-500">{errors.backgroundColor.message}</p>}
               </div>
-              {errors.backgroundColor && <p className="text-xs text-red-500">{errors.backgroundColor.message}</p>}
+              <div className="space-y-1">
+                <Label className="text-xs">لون النص (HEX)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    {...register("textColor")}
+                    placeholder="#FFFFFF"
+                    className="h-8 text-xs font-mono"
+                    maxLength={7}
+                    dir="ltr"
+                  />
+                  <div
+                    className="w-8 h-8 rounded border flex-shrink-0"
+                    style={{ backgroundColor: validText }}
+                  />
+                </div>
+                {errors.textColor && <p className="text-xs text-red-500">{errors.textColor.message}</p>}
+              </div>
             </div>
 
             <div className="space-y-2">
