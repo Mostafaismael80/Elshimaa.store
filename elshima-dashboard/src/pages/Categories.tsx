@@ -197,7 +197,6 @@ export default function Categories() {
               <TableRow>
                 <TableHead className="text-right py-4 w-20">الصورة</TableHead>
                 <TableHead className="text-right py-4 w-auto">الاسم</TableHead>
-                <TableHead className="text-right py-4">الفئة الأم</TableHead>
                 <TableHead className="text-right py-4">المنتجات</TableHead>
                 <TableHead className="text-right py-4">الترتيب</TableHead>
                 <TableHead className="text-right py-4 w-36">الحالة</TableHead>
@@ -226,9 +225,6 @@ export default function Categories() {
                       {cat.depth > 0 && <span className="text-gray-400 ml-2">└─</span>}
                       {cat.nameAr}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right py-4 text-muted-foreground text-sm">
-                    {cat.parentCategoryName || "—"}
                   </TableCell>
                   <TableCell className="text-right py-4">{cat.productCount}</TableCell>
                   <TableCell className="text-right py-4">{cat.displayOrder}</TableCell>

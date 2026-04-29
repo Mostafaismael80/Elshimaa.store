@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -97,6 +97,9 @@ export default function Reviews() {
   const [imageDialogReview, setImageDialogReview] = useState<ReviewResponse | null>(null);
   const [selected, setSelected] = useState<ReviewResponse | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  // useRef للـ guard المتزامن — useState لا يكفي لأنه async وقد يعاني من stale closure
+  // عند استدعاء handleFileUpload مرتين في نفس الـ tick كلاهما يرى uploadingFor=null
+  const isUploadingRef = useRef(false);
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -267,9 +270,19 @@ export default function Reviews() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleFileUpload = async (reviewId: string, file: File) => {
-    setUploadingFor(reviewId);
-    await uploadMutation.mutateAsync({ reviewId, file });
-    setUploadingFor(null);
+    // الحراسة المتزامنة باستخدام useRef — تمنع الإرسال المزدوج حتى في نفس الـ render tick
+    // useState لا يكفي لأنه async: استدعاءان متتاليان قد يجدان isUploading=false معاً
+    if (isUploadingRef.current) return;
+    isUploadingRef.current = true; // تحديث فوري ومتزامن — لا stale closure
+
+    setUploadingFor(reviewId); // لأغراض الـ UI فقط (الـ Spinner)
+    try {
+      await uploadMutation.mutateAsync({ reviewId, file });
+    } finally {
+      // نضمن إعادة تعيين الحالتين حتى في حالة الخطأ
+      isUploadingRef.current = false;
+      setUploadingFor(null);
+    }
   };
 
   const moveImage = (review: ReviewResponse, imageIndex: number, direction: -1 | 1) => {
@@ -402,14 +415,23 @@ export default function Reviews() {
                   <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs tap-target" onClick={() => setImageDialogReview(review)}>
                     <Image className="h-3 w-3" /> صور
                   </Button>
-                  <label className="flex-1 cursor-pointer">
+                  {/* تعطيل label بالكامل أثناء الرفع — الطبقة الثانية من الحماية */}
+                  <label
+                    className={`flex-1 ${uploadingFor === review.id ? "pointer-events-none opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
                     <Button size="sm" variant="outline" className="w-full gap-1 text-xs tap-target pointer-events-none" asChild>
                       <span>
                         {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-3 w-3" />}
                         رفع
                       </span>
                     </Button>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingFor === review.id}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }}
+                    />
                   </label>
                   <Button size="sm" variant="outline" className="tap-target px-3 text-red-500 hover:bg-red-50" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
                     <Trash2 className="h-3 w-3" />
@@ -495,13 +517,23 @@ export default function Reviews() {
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="إدارة الصور" onClick={() => setImageDialogReview(review)}>
                             <Image className="h-4 w-4" />
                           </Button>
-                          <label className="cursor-pointer">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 pointer-events-none" asChild title="رفع صورة">
+                          {/* تعطيل label بالكامل أثناء الرفع — الطبقة الثانية من الحماية */}
+                          <label
+                            className={uploadingFor === review.id ? "pointer-events-none opacity-60 cursor-not-allowed" : "cursor-pointer"}
+                            title="رفع صورة"
+                          >
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 pointer-events-none" asChild>
                               <span>
                                 {uploadingFor === review.id ? <Spinner className="h-3 w-3" /> : <Upload className="h-4 w-4" />}
                               </span>
                             </Button>
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }} />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={uploadingFor === review.id}
+                              onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(review.id, file); e.target.value = ""; }}
+                            />
                           </label>
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-600" title="حذف" onClick={() => { setSelected(review); setDeleteDialogOpen(true); }}>
                             <Trash2 className="h-4 w-4" />
@@ -759,9 +791,12 @@ export default function Reviews() {
                   </p>
                 ) : (
                   <>
+                    {/* تعطيل حقل الرفع في الـ Dialog أيضاً أثناء العملية — الطبقة الثانية */}
                     <Input
                       type="file"
                       accept="image/*"
+                      disabled={uploadingFor === imageDialogReview.id}
+                      className={uploadingFor === imageDialogReview.id ? "opacity-60 cursor-not-allowed" : ""}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleFileUpload(imageDialogReview.id, file);

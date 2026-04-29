@@ -56,6 +56,17 @@ const schema = z
   );
 type FormValues = z.infer<typeof schema>;
 
+// ─── Status Utility ────────────────────────────────────────────────────────────
+
+function computeAnnouncementStatus(startDate: string, endDate: string): 'نشط' | 'مجدول' | 'منتهي' {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (end < now) return 'منتهي';
+  if (start > now) return 'مجدول';
+  return 'نشط';
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function Announcements() {
@@ -167,9 +178,9 @@ export default function Announcements() {
   };
 
   const allAnnouncements = data?.data ?? [];
-  const announcements = showInactive 
-    ? allAnnouncements 
-    : allAnnouncements.filter((a) => a.isActive || a.isCurrentlyActive);
+  const announcements = showInactive
+    ? allAnnouncements
+    : allAnnouncements.filter((a) => computeAnnouncementStatus(a.startDate, a.endDate) === 'نشط');
 
   // ─── Date overlap detection ────────────────────────────────────────────────
 
@@ -270,9 +281,16 @@ export default function Announcements() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant={a.isCurrentlyActive ? "success" : "secondary"}>
-                        {a.isCurrentlyActive ? "نشط" : a.isActive ? "مجدول" : "غير نشط"}
-                      </Badge>
+                      {(() => {
+                        const status = computeAnnouncementStatus(a.startDate, a.endDate);
+                        if (status === 'نشط') {
+                          return <Badge variant="success">نشط</Badge>;
+                        }
+                        if (status === 'مجدول') {
+                          return <Badge variant="warning">مجدول</Badge>;
+                        }
+                        return <Badge variant="secondary">منتهي</Badge>;
+                      })()}
                     </TableCell>
                     <TableCell className="text-left">
                       <div className="flex justify-end gap-2">
