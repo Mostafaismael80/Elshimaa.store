@@ -53,7 +53,12 @@ const schema = z.object({
 }).refine((data) => {
   if (!data.startDate || !data.endDate) return true;
   return new Date(data.endDate) >= new Date(data.startDate);
-}, { message: "تاريخ النهاية يجب أن يكون بعد تاريخ البداية", path: ["endDate"] });
+}, { message: "تاريخ النهاية يجب أن يكون بعد تاريخ البداية", path: ["endDate"] }).refine((data) => {
+  // Fix #5: Percentage value must not exceed 100
+  const isPercent = (data.bizType === "cart_discount" || data.bizType === "sitewide_discount") && data.discountType === "0";
+  if (isPercent && data.value > 100) return false;
+  return true;
+}, { message: "النسبة المئوية لا يمكن أن تتجاوز 100%", path: ["value"] });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -176,10 +181,12 @@ export default function Promotions() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">العروض التلقائية</h2>
-          <p className="text-muted-foreground text-sm mt-1">{filteredPromotions.length} عرض نشط</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {filteredPromotions.length} عرض {showInactive ? "إجمالي" : "نشط"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />عرض المعطل أو المنتهي</label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />عرض جميع العروض (بما فيها المعطّلة والمنتهية)</label>
           <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> إضافة عرض جديد</Button>
         </div>
       </div>
@@ -205,13 +212,24 @@ export default function Promotions() {
                 <TableBody>
                   {filteredPromotions.map((p) => {
                     const status = getStatus(p);
-                    const bizName = p.type === "FreeShipping" ? "شحن مجاني" : p.type === "BuyXGetY" ? "اشتري و احصل على" : p.scope === "AllProducts" ? "خصم على جميع المنتجات" : "خصم على السلة";
-                    const valText = p.type === "Percentage" ? `${p.value}%` : p.type === "Fixed" ? formatCurrency(p.value) : p.type === "BuyXGetY" ? `اشتري ${p.buyQuantity} وخذ ${p.getQuantity}` : "مجاناً";
+                    // Colored badge colors per type
+                    const typeInfo: Record<string, { label: string; color: string }> = {
+                      FreeShipping: { label: "🚚 شحن مجاني", color: "#0ea5e9" },
+                      BuyXGetY:     { label: "🎁 اشتري X وخذ Y", color: "#8b5cf6" },
+                      Percentage:   { label: p.scope === "AllProducts" ? "🌐 خصم شامل %" : "🛒 خصم % على السلة", color: "#f59e0b" },
+                      Fixed:        { label: p.scope === "AllProducts" ? "🌐 خصم شامل ث" : "🛒 خصم ثابت على السلة", color: "#ef4444" },
+                    };
+                    const info = typeInfo[p.type] ?? { label: p.type, color: "#6b7280" };
+                    const valText = p.type === "Percentage" ? `${p.value}%` : p.type === "Fixed" ? formatCurrency(p.value) : p.type === "BuyXGetY" ? `اشتري ${p.buyQuantity} وخذ ${p.getQuantity} مجاناً` : "مجاناً";
                     return (
                       <TableRow key={p.id}>
                         <TableCell className="text-right font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right">{bizName}</TableCell>
-                        <TableCell className="text-right font-semibold text-blue-600">{valText}</TableCell>
+                        <TableCell className="text-right">
+                          <span style={{ background: info.color + "18", color: info.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            {info.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold" style={{ color: info.color }}>{valText}</TableCell>
                         <TableCell className="text-right">{p.minOrderValue ? formatCurrency(p.minOrderValue) : "—"}</TableCell>
                         <TableCell className="text-right text-xs">
                           <div className="flex flex-col gap-1">
@@ -315,8 +333,9 @@ export default function Promotions() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4 border p-3 rounded-lg">
+            <div className="grid grid-cols-4 gap-4 border p-3 rounded-lg">
               <div className="space-y-2"><Label>ترتيب الأولوية</Label><Input type="number" {...register("priority")} /></div>
+              <div className="space-y-2 pt-6"><label className="flex items-center gap-2 text-xs" title="هل يُطبَّق هذا العرض مع عروض أخرى في نفس الوقت؟"><input type="checkbox" {...register("isStackable")} />يتراكم مع عروض أخرى؟ ℹ️</label></div>
               <div className="space-y-2 pt-6"><label className="flex items-center gap-2 text-xs"><input type="checkbox" {...register("allowCouponStacking")} />يسمح بكوبون؟</label></div>
               <div className="space-y-2 pt-6"><label className="flex items-center gap-2 text-xs"><input type="checkbox" {...register("isActive")} />تفعيل حالياً</label></div>
             </div>

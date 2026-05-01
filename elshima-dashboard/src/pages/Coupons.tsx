@@ -117,6 +117,14 @@ export default function Coupons() {
 
   const coupons = data?.data ?? [];
 
+  const getCouponBadge = (c: CouponResponse) => {
+    if (c.isValid && c.isActive)
+      return <Badge variant="success">صالح</Badge>;
+    if (!c.isActive)
+      return <Badge variant="secondary">غير نشط</Badge>;
+    return <Badge variant="destructive">منتهي</Badge>;
+  };
+
   return (
     <div className="space-y-6" dir="rtl">
       {/* Header */}
@@ -188,9 +196,7 @@ export default function Coupons() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Badge variant={c.isValid && c.isActive ? "success" : "secondary"}>
-                      {c.isValid && c.isActive ? "صالح" : "منتهي"}
-                    </Badge>
+                    {getCouponBadge(c)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-start gap-2">
