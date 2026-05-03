@@ -58,7 +58,11 @@ const schema = z.object({
   const isPercent = (data.bizType === "cart_discount" || data.bizType === "sitewide_discount") && data.discountType === "0";
   if (isPercent && data.value > 100) return false;
   return true;
-}, { message: "النسبة المئوية لا يمكن أن تتجاوز 100%", path: ["value"] });
+}, { message: "النسبة المئوية لا يمكن أن تتجاوز 100%", path: ["value"] }).refine((data) => {
+  // BUG #4: Required product must be selected for BuyXGetY
+  if (data.bizType === "buy_x_get_y" && (!data.productId || data.productId === "none")) return false;
+  return true;
+}, { message: "يجب اختيار المنتج المطلوب", path: ["productId"] });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -258,9 +262,10 @@ export default function Promotions() {
 
       {/* Editor Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl flex flex-col" style={{ maxHeight: '90vh' }}>
           <DialogHeader><DialogTitle>{selected ? "تعديل عرض" : "إضافة عرض جديد"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
             <div className="space-y-2">
               <Label>اسم العرض (يظهر للعميل)</Label>
               <Input {...register("name")} />
@@ -304,12 +309,12 @@ export default function Promotions() {
                   <div className="space-y-2 col-span-2">
                     <Label>المنتج المطلوب (الذي يجب شراؤه)</Label>
                     <Select value={watch("productId")} onValueChange={(v) => setValue("productId", v)}>
-                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="يرجى الاختيار..." /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">يرجى الاختيار...</SelectItem>
                         {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nameAr}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {errors.productId && <p className="text-xs text-red-500">{errors.productId.message}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>اشتري كمية</Label>
@@ -345,7 +350,9 @@ export default function Promotions() {
               <div className="space-y-2"><Label>إلى تاريخ</Label><Input type="datetime-local" {...register("endDate")} /></div>
             </div>
 
-            <DialogFooter>
+            </div>{/* end scrollable area */}
+
+            <DialogFooter className="pt-2 shrink-0">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Spinner className="ml-2" /> : null}حفظ العرض</Button>
             </DialogFooter>
