@@ -59,8 +59,8 @@ const schema = z.object({
   if (isPercent && data.value > 100) return false;
   return true;
 }, { message: "النسبة المئوية لا يمكن أن تتجاوز 100%", path: ["value"] }).refine((data) => {
-  // BUG #4: Required product must be selected for BuyXGetY
-  if (data.bizType === "buy_x_get_y" && (!data.productId || data.productId === "none")) return false;
+  // A product must be selected when the type is BuyXGetY
+  if (data.bizType === "buy_x_get_y" && !data.productId) return false;
   return true;
 }, { message: "يجب اختيار المنتج المطلوب", path: ["productId"] });
 
@@ -74,7 +74,9 @@ export default function Promotions() {
   const [selected, setSelected] = useState<PromotionResponse | null>(null);
   const [showInactive, setShowInactive] = useState(false);
 
-  const { data, isLoading } = useQuery({ queryKey: ["promotions", showInactive], queryFn: () => promotionsApi.getAll(showInactive) });
+  // Always fetch all promotions; filtering is done entirely client-side so that
+  // scheduled (مجدول) promos are never silently dropped by the server-side filter.
+  const { data, isLoading } = useQuery({ queryKey: ["promotions"], queryFn: () => promotionsApi.getAll(true) });
   const { data: productsData } = useQuery({ queryKey: ["products-all"], queryFn: () => productsApi.getAll({ pageSize: 1000 }) });
   
   const products = productsData?.data?.items ?? [];
@@ -136,7 +138,7 @@ export default function Promotions() {
       name: vals.name, type, scope, value: isPercentOrFixed ? vals.value : 0,
       priority: vals.priority, isStackable: vals.isStackable, allowCouponStacking: vals.allowCouponStacking,
       minOrderValue: needsMinOrder && vals.minOrderValue && vals.minOrderValue > 0 ? vals.minOrderValue : null,
-      productId: vals.bizType === "buy_x_get_y" && vals.productId !== "none" ? vals.productId : null,
+      productId: vals.bizType === "buy_x_get_y" && vals.productId ? vals.productId : null,
       buyQuantity: vals.bizType === "buy_x_get_y" ? vals.buyQuantity : null,
       getQuantity: vals.bizType === "buy_x_get_y" ? vals.getQuantity : null,
       getProductId: vals.bizType === "buy_x_get_y" && vals.getProductId && vals.getProductId !== "none" ? vals.getProductId : null,
@@ -153,20 +155,29 @@ export default function Promotions() {
     return {
       name: p.name, bizType: biz, discountType: p.type === "Fixed" ? "1" : "0", value: p.value || 0,
       minOrderValue: p.minOrderValue, priority: p.priority, isStackable: p.isStackable, allowCouponStacking: p.allowCouponStacking,
-      productId: p.productId || "none", buyQuantity: p.buyQuantity || 0, getQuantity: p.getQuantity || 0, getProductId: p.getProductId || "none",
+      // productId uses "" (empty string) as the no-selection sentinel — Radix Select shows its
+      // placeholder naturally for empty string. getProductId keeps "none" because its Select
+      // has an explicit <SelectItem value="none"> for "same product".
+      productId: p.productId || "", buyQuantity: p.buyQuantity || 0, getQuantity: p.getQuantity || 0, getProductId: p.getProductId || "none",
       startDate: p.startDate?.slice(0, 16), endDate: p.endDate ? p.endDate.slice(0, 16) : "", isActive: p.isActive
     };
   };
 
   const onSubmit = async (values: FormValues) => {
     const payload = mapUiToApi(values);
-    if (selected) await updateMutation.mutateAsync({ id: selected.id, data: payload });
-    else await createMutation.mutateAsync(payload);
+    try {
+      if (selected) await updateMutation.mutateAsync({ id: selected.id, data: payload });
+      else await createMutation.mutateAsync(payload);
+    } catch {
+      // Errors are surfaced via mutation onError toast callbacks.
+      // Catching here prevents react-hook-form from leaving isSubmitting=true on rejection,
+      // which would permanently disable the submit button until the dialog is closed.
+    }
   };
 
   const openCreate = () => {
     setSelected(null);
-    reset({ name: "", bizType: "cart_discount", discountType: "0", value: 0, minOrderValue: null, priority: 0, isStackable: true, allowCouponStacking: true, isActive: true, productId: "none", getProductId: "none", buyQuantity: 1, getQuantity: 1, startDate: "", endDate: "" });
+    reset({ name: "", bizType: "cart_discount", discountType: "0", value: 0, minOrderValue: null, priority: 0, isStackable: true, allowCouponStacking: true, isActive: true, productId: "", getProductId: "none", buyQuantity: 1, getQuantity: 1, startDate: "", endDate: "" });
     setDialogOpen(true);
   };
 
@@ -178,7 +189,9 @@ export default function Promotions() {
     return now < start ? "مجدول" : end && now > end ? "منتهي" : "نشط";
   };
 
-  const filteredPromotions = promotions.filter(p => showInactive || getStatus(p) === "نشط");
+  // Default view shows both active (نشط) and scheduled (مجدول) promotions.
+  // Inactive (غير نشط) and expired (منتهي) are hidden unless the checkbox is ticked.
+  const filteredPromotions = promotions.filter(p => showInactive || ["نشط", "مجدول"].includes(getStatus(p)));
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -186,7 +199,7 @@ export default function Promotions() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">العروض التلقائية</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            {filteredPromotions.length} عرض {showInactive ? "إجمالي" : "نشط"}
+            {filteredPromotions.length} عرض {showInactive ? "إجمالي" : "حالي ومجدول"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -308,7 +321,7 @@ export default function Promotions() {
                 <>
                   <div className="space-y-2 col-span-2">
                     <Label>المنتج المطلوب (الذي يجب شراؤه)</Label>
-                    <Select value={watch("productId")} onValueChange={(v) => setValue("productId", v)}>
+                    <Select value={watch("productId") || undefined} onValueChange={(v) => setValue("productId", v)}>
                       <SelectTrigger><SelectValue placeholder="يرجى الاختيار..." /></SelectTrigger>
                       <SelectContent>
                         {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.nameAr}</SelectItem>)}
