@@ -393,6 +393,12 @@ export default function Orders() {
               <div className="rounded-lg bg-gray-50 p-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span>المجموع الفرعي</span><span>{formatCurrency(detailOrder.subTotal)}</span></div>
                 <div className="flex justify-between"><span>الشحن</span><span>{formatCurrency(detailOrder.shippingCost)}</span></div>
+                {detailOrder.discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>خصم العروض الترويجية</span>
+                    <span>- {formatCurrency(detailOrder.discountAmount)}</span>
+                  </div>
+                )}
                 {detailOrder.couponDiscountAmount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>خصم الكوبون ({detailOrder.couponCode})</span>
