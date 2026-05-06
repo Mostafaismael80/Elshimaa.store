@@ -23,11 +23,12 @@ import type { OrderResponse, UpdateOrderStatusRequest } from "../types";
 // ─── Status Config ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  Pending:   { label: "قيد الانتظار", color: "bg-yellow-100 text-yellow-800", icon: <Clock className="h-3 w-3" /> },
-  Confirmed: { label: "مؤكد",        color: "bg-blue-100 text-blue-800",   icon: <CheckCircle className="h-3 w-3" /> },
-  Shipped:   { label: "تم الشحن",    color: "bg-purple-100 text-purple-800", icon: <Truck className="h-3 w-3" /> },
-  Delivered: { label: "تم التسليم", color: "bg-green-100 text-green-800",  icon: <Package className="h-3 w-3" /> },
-  Cancelled: { label: "ملغي",        color: "bg-red-100 text-red-800",      icon: <XCircle className="h-3 w-3" /> },
+  Pending:    { label: "قيد الانتظار",  color: "bg-yellow-100 text-yellow-800",  icon: <Clock className="h-3 w-3" /> },
+  Confirmed:  { label: "مؤكد",          color: "bg-blue-100 text-blue-800",      icon: <CheckCircle className="h-3 w-3" /> },
+  Processing: { label: "جارى التجهيز",  color: "bg-orange-100 text-orange-800", icon: <Package className="h-3 w-3" /> },
+  Shipped:    { label: "تم الشحن",      color: "bg-purple-100 text-purple-800",  icon: <Truck className="h-3 w-3" /> },
+  Delivered:  { label: "تم التسليم",    color: "bg-green-100 text-green-800",    icon: <CheckCircle className="h-3 w-3" /> },
+  Cancelled:  { label: "ملغي",          color: "bg-red-100 text-red-800",        icon: <XCircle className="h-3 w-3" /> },
 };
 
 function OrderStatusBadge({ status }: { status: string }) {
@@ -42,10 +43,11 @@ function OrderStatusBadge({ status }: { status: string }) {
 // ─── Status transition options ─────────────────────────────────────────────────
 
 const NEXT_STATUS_OPTIONS = [
-  { value: ORDER_STATUS.Confirmed, label: "تأكيد الطلب" },
-  { value: ORDER_STATUS.Shipped,   label: "شحن الطلب" },
-  { value: ORDER_STATUS.Delivered, label: "تسليم الطلب" },
-  { value: ORDER_STATUS.Cancelled, label: "إلغاء الطلب" },
+  { value: ORDER_STATUS.Confirmed,  label: "تأكيد الطلب" },
+  { value: ORDER_STATUS.Processing, label: "جارى التجهيز" },
+  { value: ORDER_STATUS.Shipped,    label: "شحن الطلب" },
+  { value: ORDER_STATUS.Delivered,  label: "تسليم الطلب" },
+  { value: ORDER_STATUS.Cancelled,  label: "إلغاء الطلب" },
 ];
 
 export default function Orders() {
@@ -132,12 +134,16 @@ export default function Orders() {
   };
 
   const canCancel = (order: OrderResponse) =>
-    order.orderStatus !== "Shipped" && order.orderStatus !== "Delivered" && order.orderStatus !== "Cancelled";
+    order.orderStatus !== "Shipped" &&
+    order.orderStatus !== "Delivered" &&
+    order.orderStatus !== "Cancelled";
 
   /** Check if a status transition is dangerous */
   const isDangerousTransition = (currentStatus: string, newSt: string) => {
-    // Cancelling a Confirmed order is risky
-    if (newSt === String(ORDER_STATUS.Cancelled) && currentStatus === "Confirmed") return true;
+    // Cancelling a Confirmed or Processing order is risky
+    const newNum = Number(newSt);
+    if (newNum === ORDER_STATUS.Cancelled &&
+        (currentStatus === "Confirmed" || currentStatus === "Processing")) return true;
     return false;
   };
 
@@ -175,9 +181,10 @@ export default function Orders() {
             <SelectItem value="all">جميع الحالات</SelectItem>
             <SelectItem value="0">قيد الانتظار</SelectItem>
             <SelectItem value="1">مؤكد</SelectItem>
-            <SelectItem value="2">تم الشحن</SelectItem>
-            <SelectItem value="3">تم التسليم</SelectItem>
-            <SelectItem value="4">ملغي</SelectItem>
+            <SelectItem value="2">جارى التجهيز</SelectItem>
+            <SelectItem value="3">تم الشحن</SelectItem>
+            <SelectItem value="4">تم التسليم</SelectItem>
+            <SelectItem value="5">ملغي</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

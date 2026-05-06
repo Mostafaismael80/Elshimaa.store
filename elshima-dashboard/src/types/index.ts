@@ -341,14 +341,16 @@ export interface UpdateOrderStatusRequest {
 export const ORDER_STATUS = {
   Pending: 0,
   Confirmed: 1,
-  Shipped: 2,
-  Delivered: 3,
-  Cancelled: 4,
+  Processing: 2,
+  Shipped: 3,
+  Delivered: 4,
+  Cancelled: 5,
 } as const;
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   Pending: 'قيد الانتظار',
   Confirmed: 'مؤكد',
+  Processing: 'جارى التجهيز',
   Shipped: 'تم الشحن',
   Delivered: 'تم التسليم',
   Cancelled: 'ملغي',
